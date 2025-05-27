@@ -1,4 +1,5 @@
 import { ThreadSchema, type ParsedThread, type WorkerMessage } from '../types/messenger';
+import { readFileWithProperEncoding, fixEncoding } from '../utils/encoding';
 
 interface ParseRequest {
   type: 'PARSE_THREAD';
@@ -18,24 +19,43 @@ async function parseThreadFile(
   fileHandle: FileSystemFileHandle,
   threadId: string,
 ): Promise<ParsedThread | null> {
+  let rawTextForDebug = '';
   try {
     const file = await fileHandle.getFile();
-    const text = await file.text();
+    
+    // Key approach: Fix encoding on the entire file content BEFORE JSON parsing
+    // This matches the proven fbarch approach
+    const fixedText = await readFileWithProperEncoding(file);
+    rawTextForDebug = fixedText; // Save text for debugging
 
-    // Parse the JSON
-    const data = JSON.parse(text);
-
-    // Validate with zod
+    // Parse the encoding-corrected JSON
+    const data = JSON.parse(fixedText);
     const validatedData = ThreadSchema.parse(data);
+
+    // Apply fixEncoding to individual fields as additional safety
+    // (following fbarch pattern, even though whole file was already fixed)
+    const safeTitle = validatedData.title ? fixEncoding(validatedData.title) : undefined;
 
     return {
       threadId,
-      participants: validatedData.participants,
-      messages: validatedData.messages.sort((a, b) => a.timestamp_ms - b.timestamp_ms),
-      title: validatedData.title,
+      participants: validatedData.participants.map(p => ({
+        ...p,
+        name: fixEncoding(p.name) // Fix participant names
+      })),
+      messages: validatedData.messages
+        .map(m => ({
+          ...m,
+          sender_name: fixEncoding(m.sender_name), // Fix sender names
+          content: m.content ? fixEncoding(m.content) : m.content // Fix message content
+        }))
+        .sort((a, b) => a.timestamp_ms - b.timestamp_ms), // Sorting remains
+      title: safeTitle,
     };
-  } catch (error) {
-    logDebug('PARSE_ERROR', { threadId, error });
+  } catch (error: any) {
+    logDebug('PARSE_ERROR in parseThreadFile', { threadId, fileName: fileHandle.name, errorMessage: error.message, errorStack: error.stack });
+    if (error instanceof SyntaxError) {
+      console.error(`[Worker] JSON Parsing Error for file ${fileHandle.name}. Problematic text sample (first 500 chars):\n`, rawTextForDebug.substring(0, 500));
+    }
     return null;
   }
 }
@@ -58,7 +78,7 @@ async function parseThreadDirectory(dirHandle: FileSystemDirectoryHandle, thread
         entry.name.startsWith('message_') &&
         entry.name.endsWith('.json')
       ) {
-        messageFiles.push(entry);
+        messageFiles.push(entry as FileSystemFileHandle);
       }
     }
 

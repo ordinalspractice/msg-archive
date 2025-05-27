@@ -502,6 +502,45 @@ const logger: Logger
 
 ---
 
+### Encoding Utilities
+**File**: `src/utils/encoding.ts`
+
+Utilities for fixing Facebook's mojibake character encoding issues.
+
+```typescript
+function fixEncoding(text: string): string
+function readFileWithProperEncoding(file: File): Promise<string>
+```
+
+**`fixEncoding(text)`**:
+- Fixes Facebook's mojibake using `decodeURIComponent(escape(text))`
+- Handles UTF-8 text incorrectly interpreted as windows-1252
+- Returns corrected text with proper Polish/international characters
+
+**`readFileWithProperEncoding(file)`**:
+- Reads file and applies mojibake fixes to entire content
+- Applied before JSON parsing for maximum effectiveness
+- Logs encoding fixes to console for debugging
+
+**Example**:
+```typescript
+// Before: "wÅosy" (corrupted)
+// After:  "włosy" (correct)
+const fixed = fixEncoding("wÅosy"); // Returns "włosy"
+```
+
+**How it works**:
+1. `escape("Å¼")` → `"%C5%BC"` (percent-encode bytes)
+2. `decodeURIComponent("%C5%BC")` → `"ż"` (decode as UTF-8)
+
+**Features**:
+- Automatic mojibake detection and repair
+- Comprehensive logging of fixes applied
+- Fallback error handling
+- Optimized for Facebook export patterns
+
+---
+
 ### File System Types
 **File**: `src/types/file-system.d.ts`
 

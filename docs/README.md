@@ -10,6 +10,7 @@ This React + TypeScript application allows users to explore their downloaded Fac
 
 - **Client-Side Processing**: All data stays in your browser - no server uploads
 - **Folder-Based Access**: Direct integration with Facebook's archive folder structure
+- **Automatic Encoding Fix**: Intelligent repair of Facebook's mojibake (corrupted international characters)
 - **Virtualized Rendering**: Handles conversations with thousands of messages efficiently
 - **Fuzzy Search**: Fast, intelligent search across all conversations and messages
 - **Timeline Visualization**: Interactive heatmap showing conversation activity over time

@@ -102,6 +102,47 @@ This guide covers common issues, error messages, and solutions for the Facebook 
    - Check specific message files manually
    - Look for truncated or corrupted files
 
+### Character Encoding Issues
+
+**Symptom**: Non-English characters appear corrupted (e.g., Polish "ł" shows as "Å")
+
+**Cause**: Facebook exports contain "mojibake" - UTF-8 text that was incorrectly interpreted as windows-1252 and then stored in UTF-8 JSON files
+
+**Examples of corrupted characters**:
+- `włosy` → `wÅosy` (hair)
+- `brązowe` → `brÄzowe` (brown)
+- `Kupiłam` → `KupiÅam` (I bought)
+- `ł` → `Å`
+- `ą` → `Ä` 
+- `ę` → `Ä`
+- `ó` → `Ã³`
+- `ż` → `Å¼`
+
+**Solutions**:
+
+1. **Automatic Mojibake Fix (Built-in)**
+   - The app automatically fixes Facebook's mojibake using `decodeURIComponent(escape(text))`
+   - Applied to entire file content before JSON parsing
+   - Additional fixes applied to individual fields (names, content, titles)
+   - No user action required - works automatically
+
+2. **How the Fix Works**
+   ```typescript
+   // Example: "Å¼" (corrupted "ż") gets fixed
+   escape("Å¼")           // → "%C5%BC" (percent-encoded bytes)
+   decodeURIComponent("%C5%BC")  // → "ż" (proper UTF-8 decoding)
+   ```
+
+3. **Verification**
+   - Check browser console for `[encoding] Fixed mojibake` messages
+   - Polish characters should display correctly in conversations
+   - Test function available: `testEncodingFix()` in browser console
+
+4. **If Issues Persist**
+   - Clear browser cache and reload
+   - Check console for encoding errors
+   - Report specific character combinations that aren't fixed
+
 ### Search Not Working
 
 **Symptom**: Search bar appears but returns no results
