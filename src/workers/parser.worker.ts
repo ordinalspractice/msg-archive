@@ -22,7 +22,7 @@ async function parseThreadFile(
   let rawTextForDebug = '';
   try {
     const file = await fileHandle.getFile();
-    
+
     // Key approach: Fix encoding on the entire file content BEFORE JSON parsing
     // This matches the proven fbarch approach
     const fixedText = await readFileWithProperEncoding(file);
@@ -38,23 +38,31 @@ async function parseThreadFile(
 
     return {
       threadId,
-      participants: validatedData.participants.map(p => ({
+      participants: validatedData.participants.map((p) => ({
         ...p,
-        name: fixEncoding(p.name) // Fix participant names
+        name: fixEncoding(p.name), // Fix participant names
       })),
       messages: validatedData.messages
-        .map(m => ({
+        .map((m) => ({
           ...m,
           sender_name: fixEncoding(m.sender_name), // Fix sender names
-          content: m.content ? fixEncoding(m.content) : m.content // Fix message content
+          content: m.content ? fixEncoding(m.content) : m.content, // Fix message content
         }))
         .sort((a, b) => a.timestamp_ms - b.timestamp_ms), // Sorting remains
       title: safeTitle,
     };
   } catch (error: any) {
-    logDebug('PARSE_ERROR in parseThreadFile', { threadId, fileName: fileHandle.name, errorMessage: error.message, errorStack: error.stack });
+    logDebug('PARSE_ERROR in parseThreadFile', {
+      threadId,
+      fileName: fileHandle.name,
+      errorMessage: error.message,
+      errorStack: error.stack,
+    });
     if (error instanceof SyntaxError) {
-      console.error(`[Worker] JSON Parsing Error for file ${fileHandle.name}. Problematic text sample (first 500 chars):\n`, rawTextForDebug.substring(0, 500));
+      console.error(
+        `[Worker] JSON Parsing Error for file ${fileHandle.name}. Problematic text sample (first 500 chars):\n`,
+        rawTextForDebug.substring(0, 500),
+      );
     }
     return null;
   }
@@ -134,7 +142,6 @@ async function parseThreadDirectory(dirHandle: FileSystemDirectoryHandle, thread
     throw error;
   }
 }
-
 
 // Worker message handler
 self.addEventListener('message', async (event: MessageEvent<ParseRequest>) => {

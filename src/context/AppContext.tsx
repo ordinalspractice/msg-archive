@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import type { ParsedThread, ThreadMetadata } from '../types/messenger';
 
 interface AppContextType {
@@ -13,6 +13,7 @@ interface AppContextType {
   threadLoadingStates: Map<string, boolean>;
   parseProgress: Map<string, number>;
   setParseProgress: (threadId: string, progress: number) => void;
+  loadInitialThreads: (initialThreads: ThreadMetadata[]) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -32,9 +33,17 @@ interface AppProviderProps {
 export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [directoryHandle, setDirectoryHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [threads, setThreads] = useState<Map<string, ParsedThread>>(new Map());
-  const [threadMetadata, setThreadMetadata] = useState<ThreadMetadata[]>([]);
+  const [threadMetadata, setThreadMetadataState] = useState<ThreadMetadata[]>([]);
   const [threadLoadingStates, setThreadLoadingStates] = useState<Map<string, boolean>>(new Map());
   const [parseProgress, setParseProgressState] = useState<Map<string, number>>(new Map());
+
+  const loadInitialThreads = useCallback((initialThreads: ThreadMetadata[]) => {
+    // Sort initial threads by title (folder name) alphabetically
+    const sortedInitialThreads = [...initialThreads].sort((a, b) =>
+      (a.title || '').localeCompare(b.title || ''),
+    );
+    setThreadMetadataState(sortedInitialThreads);
+  }, []);
 
   const addThread = useCallback((thread: ParsedThread) => {
     setThreads((prev) => {
@@ -52,14 +61,18 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       title: thread.title,
     };
 
-    setThreadMetadata((prev) => {
-      const existing = prev.findIndex((m) => m.id === thread.threadId);
-      if (existing >= 0) {
-        const newMeta = [...prev];
-        newMeta[existing] = metadata;
-        return newMeta;
+    setThreadMetadataState((prev) => {
+      const existingIndex = prev.findIndex((m) => m.id === metadata.id);
+      let newMetaArray;
+      if (existingIndex >= 0) {
+        newMetaArray = [...prev];
+        newMetaArray[existingIndex] = metadata;
+      } else {
+        // This case handles if the thread wasn't in the initial list for some reason
+        newMetaArray = [...prev, metadata];
       }
-      return [...prev, metadata];
+      // Sort by last message time, most recent first
+      return newMetaArray.sort((a, b) => (b.lastMessageTime || 0) - (a.lastMessageTime || 0));
     });
 
     // Clear loading state
@@ -120,6 +133,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     threadLoadingStates,
     parseProgress,
     setParseProgress,
+    loadInitialThreads,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

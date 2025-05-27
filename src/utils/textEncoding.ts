@@ -1,6 +1,6 @@
 /**
  * Minimal text encoding fixes for very specific Facebook export artifacts
- * 
+ *
  * This should only be used as a last resort for cases where standard TextDecoder
  * doesn't handle specific Facebook quirks. Most encoding issues should be resolved
  * by proper TextDecoder usage in encoding.ts
@@ -13,7 +13,7 @@
  */
 export function fixEncodingIssues(text: string): string {
   if (!text) return text;
-  
+
   // TODO: If testing shows that TextDecoder('windows-1252') doesn't handle
   // some VERY SPECIFIC Facebook artifacts, add minimal, targeted rules here.
   // For example:
@@ -34,14 +34,14 @@ export function fixEncodingIssues(text: string): string {
  */
 export function fixTextEncoding(text: string): string {
   if (!text) return text;
-  
+
   // console.log('[textEncoding.ts] fixTextEncoding called. Input sample:', text.substring(0, 60));
   const result = fixEncodingIssues(text);
-  
+
   // if (result !== text) {
   //   console.log('[textEncoding.ts] fixTextEncoding made changes. Output sample:', result.substring(0, 60));
   // }
-  
+
   return result;
 }
 
@@ -51,11 +51,13 @@ export function fixTextEncoding(text: string): string {
  */
 export function hasEncodingIssues(text: string): boolean {
   if (!text) return false;
-  
+
   if (text.includes('\uFFFD')) {
-    console.warn('[textEncoding.ts] hasEncodingIssues: Found Unicode replacement character (U+FFFD). This indicates a probable decoding issue if fatal:false was used.');
+    console.warn(
+      '[textEncoding.ts] hasEncodingIssues: Found Unicode replacement character (U+FFFD). This indicates a probable decoding issue if fatal:false was used.',
+    );
     return true;
   }
-  
+
   return false;
 }

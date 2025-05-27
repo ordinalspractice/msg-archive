@@ -67,4 +67,4 @@ describe('Text Encoding Utilities', () => {
       expect(fixTextEncoding(undefined as any)).toBe(undefined);
     });
   });
-}); 
+});
