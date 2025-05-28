@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useEffect } from 'react';
+import React, { useCallback, useRef, useEffect, useImperativeHandle } from 'react';
 import { Virtuoso } from 'react-virtuoso';
 import type { VirtuosoHandle } from 'react-virtuoso';
 import { Box } from '@chakra-ui/react';
@@ -7,12 +7,19 @@ import { logger } from '../utils/logger';
 import type { Message } from '../types/messenger';
 import Fuse from 'fuse.js';
 
+export interface MessageListHandle {
+  navigateToNextResult: () => void;
+  navigateToPrevResult: () => void;
+}
+
 interface MessageListProps {
   messages: Message[];
   searchQuery: string;
+  onUpdateSearchResults: (count: number, currentIndexInResultsArray: number) => void;
 }
 
-export const MessageList: React.FC<MessageListProps> = ({ messages, searchQuery }) => {
+export const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(
+  ({ messages, searchQuery, onUpdateSearchResults }, ref) => {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const searchResultsRef = useRef<number[]>([]);
   const currentSearchIndexRef = useRef(0);
@@ -23,6 +30,17 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, searchQuery 
       logger.debug('LIST_UNMOUNTED');
     };
   }, [messages.length]);
+
+  const jumpToMessage = useCallback((index: number) => {
+    if (virtuosoRef.current) {
+      logger.debug('SEARCH_JUMP', { index });
+      virtuosoRef.current.scrollToIndex({
+        index,
+        behavior: 'smooth',
+        align: 'center',
+      });
+    }
+  }, []);
 
   useEffect(() => {
     if (searchQuery) {
@@ -40,27 +58,48 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, searchQuery 
 
       logger.debug('SEARCH_RESULTS_COUNT', { count: results.length });
 
-      // Jump to first result
+      // Jump to first result and update search state
       if (results.length > 0) {
         currentSearchIndexRef.current = 0;
         jumpToMessage(searchResultsRef.current[0]);
+        onUpdateSearchResults(searchResultsRef.current.length, currentSearchIndexRef.current);
+      } else {
+        currentSearchIndexRef.current = -1;
+        onUpdateSearchResults(0, -1);
       }
     } else {
       searchResultsRef.current = [];
-      currentSearchIndexRef.current = 0;
+      currentSearchIndexRef.current = -1;
+      onUpdateSearchResults(0, -1);
     }
-  }, [searchQuery, messages]);
+  }, [searchQuery, messages, jumpToMessage, onUpdateSearchResults]);
 
-  const jumpToMessage = useCallback((index: number) => {
-    if (virtuosoRef.current) {
-      logger.debug('SEARCH_JUMP', { index });
-      virtuosoRef.current.scrollToIndex({
-        index,
-        behavior: 'smooth',
-        align: 'center',
-      });
+  const navigateToNextResult = useCallback(() => {
+    if (searchResultsRef.current.length === 0) return;
+    let nextIndex = currentSearchIndexRef.current + 1;
+    if (nextIndex >= searchResultsRef.current.length) {
+      nextIndex = 0; // Wrap around to the first result
     }
-  }, []);
+    currentSearchIndexRef.current = nextIndex;
+    jumpToMessage(searchResultsRef.current[currentSearchIndexRef.current]);
+    onUpdateSearchResults(searchResultsRef.current.length, currentSearchIndexRef.current);
+  }, [jumpToMessage, onUpdateSearchResults]);
+
+  const navigateToPrevResult = useCallback(() => {
+    if (searchResultsRef.current.length === 0) return;
+    let prevIndex = currentSearchIndexRef.current - 1;
+    if (prevIndex < 0) {
+      prevIndex = searchResultsRef.current.length - 1; // Wrap around to the last result
+    }
+    currentSearchIndexRef.current = prevIndex;
+    jumpToMessage(searchResultsRef.current[currentSearchIndexRef.current]);
+    onUpdateSearchResults(searchResultsRef.current.length, currentSearchIndexRef.current);
+  }, [jumpToMessage, onUpdateSearchResults]);
+
+  useImperativeHandle(ref, () => ({
+    navigateToNextResult,
+    navigateToPrevResult,
+  }));
 
   const isMessageHighlighted = useCallback((index: number) => {
     return searchResultsRef.current.includes(index);
@@ -101,4 +140,4 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, searchQuery 
       />
     </Box>
   );
-};
+});

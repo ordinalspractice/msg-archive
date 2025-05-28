@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -20,7 +20,7 @@ import {
 import { FiArrowLeft, FiSettings } from 'react-icons/fi';
 import { useAppContext } from '../context/AppContext';
 import { useMessageParser } from '../hooks/useMessageParser';
-import { MessageList } from '../components/MessageList';
+import { MessageList, type MessageListHandle } from '../components/MessageList';
 import { SearchBar } from '../components/SearchBar';
 import { TimelineHeatmap } from '../components/TimelineHeatmap';
 import { Settings } from '../components/Settings';
@@ -47,6 +47,9 @@ export const ConversationView: React.FC = () => {
   const [thread, setThread] = useState<ParsedThread | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showTimeline, setShowTimeline] = useState(false);
+  const [searchResultCount, setSearchResultCount] = useState(0);
+  const [currentSearchResultIndex, setCurrentSearchResultIndex] = useState(-1); // 0-based internal index
+  const messageListRef = useRef<MessageListHandle>(null);
   const {
     isOpen: isSettingsOpen,
     onOpen: onOpenSettings,
@@ -54,6 +57,19 @@ export const ConversationView: React.FC = () => {
   } = useDisclosure();
 
   const decodedThreadId = threadId ? decodeURIComponent(threadId) : '';
+
+  const handleUpdateSearchResults = useCallback((count: number, currentIndexInResultsArray: number) => {
+    setSearchResultCount(count);
+    setCurrentSearchResultIndex(currentIndexInResultsArray);
+  }, []);
+
+  const handleNavigateNextResult = useCallback(() => {
+    messageListRef.current?.navigateToNextResult();
+  }, []);
+
+  const handleNavigatePrevResult = useCallback(() => {
+    messageListRef.current?.navigateToPrevResult();
+  }, []);
 
   const handleThreadParsed = useCallback(
     (parsedThread: ParsedThread) => {
@@ -260,6 +276,10 @@ export const ConversationView: React.FC = () => {
             onSearch={setSearchQuery}
             onToggleTimeline={() => setShowTimeline(!showTimeline)}
             showTimeline={showTimeline}
+            searchResultCount={searchResultCount}
+            currentResultIndex={currentSearchResultIndex === -1 ? 0 : currentSearchResultIndex + 1} // Display 1-based
+            onNavigateNext={handleNavigateNextResult}
+            onNavigatePrev={handleNavigatePrevResult}
           />
         </Box>
       </Box>
@@ -303,7 +323,12 @@ export const ConversationView: React.FC = () => {
 
       {/* Messages */}
       <Box flex={1} maxW="1200px" mx="auto" w="full" px={{ base: 2, md: 4 }} minH={0} h="full">
-        <MessageList messages={thread.messages} searchQuery={searchQuery} />
+        <MessageList 
+          ref={messageListRef}
+          messages={thread.messages} 
+          searchQuery={searchQuery}
+          onUpdateSearchResults={handleUpdateSearchResults}
+        />
       </Box>
 
       <Settings isOpen={isSettingsOpen} onClose={onCloseSettings} />
