@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box,
   Text,
@@ -15,6 +15,7 @@ import {
   Link,
   Button,
   Skeleton,
+  Tooltip,
 } from '@chakra-ui/react';
 import { FiPlay, FiMusic, FiDownload } from 'react-icons/fi';
 import ReactPlayer from 'react-player';
@@ -234,6 +235,32 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     );
   };
 
+  // Group reactions by emoji
+  const groupedReactions = useMemo(() => {
+    if (!message.reactions || message.reactions.length === 0) {
+      return [];
+    }
+
+    const reactionMap = new Map<string, string[]>();
+    
+    message.reactions.forEach(reaction => {
+      const emoji = reaction.reaction;
+      const actor = reaction.actor;
+      
+      if (reactionMap.has(emoji)) {
+        reactionMap.get(emoji)!.push(actor);
+      } else {
+        reactionMap.set(emoji, [actor]);
+      }
+    });
+
+    return Array.from(reactionMap.entries()).map(([emoji, actors]) => ({
+      emoji,
+      actors,
+      count: actors.length
+    }));
+  }, [message.reactions]);
+
   const collectLightboxSlides = useCallback(async () => {
     if (!message.photos || message.photos.length === 0 || !directoryHandle) {
       setLightboxSlides([]);
@@ -425,21 +452,40 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             )}
 
 
-            {message.reactions && message.reactions.length > 0 && (
+            {groupedReactions && groupedReactions.length > 0 && (
               <HStack mt={2} spacing={1} flexWrap="wrap" justify={isMyMessage ? 'flex-end' : 'flex-start'}>
-                {message.reactions.map((reaction, index) => (
-                  <Badge 
-                    key={index} 
-                    colorScheme={isMyMessage ? "whiteAlpha" : "gray"} 
-                    variant={isMyMessage ? "solid" : "subtle"}
-                    bg={isMyMessage ? "whiteAlpha.300" : "gray.200"}
-                    color={isMyMessage ? "white" : "gray.700"}
-                    fontSize="xs"
-                    px={2} py={0.5} borderRadius="full"
-                  >
-                    {reaction.reaction} {highlightText(reaction.actor)}
-                  </Badge>
-                ))}
+                {groupedReactions.map((reactionGroup, index) => {
+                  const tooltipLabel = reactionGroup.actors
+                    .map(actor => searchQuery ? highlightText(actor) : actor)
+                    .join('\n');
+                  
+                  return (
+                    <Tooltip 
+                      key={`${reactionGroup.emoji}-${index}`}
+                      label={tooltipLabel}
+                      placement="top"
+                      hasArrow
+                      bg={useColorModeValue('gray.700', 'gray.300')}
+                      color={useColorModeValue('white', 'gray.800')}
+                    >
+                      <Badge 
+                        colorScheme={isMyMessage ? "whiteAlpha" : "gray"} 
+                        variant={isMyMessage ? "solid" : "subtle"}
+                        bg={isMyMessage ? "whiteAlpha.300" : "gray.200"}
+                        color={isMyMessage ? "white" : "gray.700"}
+                        fontSize="xs"
+                        px={2} py={1} borderRadius="full"
+                        cursor="default"
+                        _hover={{
+                          bg: isMyMessage ? "whiteAlpha.400" : "gray.300"
+                        }}
+                      >
+                        <Text as="span" mr={1}>{reactionGroup.emoji}</Text>
+                        <Text as="span" fontWeight="semibold">{reactionGroup.count}</Text>
+                      </Badge>
+                    </Tooltip>
+                  );
+                })}
               </HStack>
             )}
 

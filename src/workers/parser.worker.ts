@@ -75,6 +75,11 @@ async function parseThreadFile(
           gifs: m.gifs?.map(g => ({ ...g, uri: normalizeAssetUri(g.uri) || g.uri })),
           files: m.files?.map(f => ({ ...f, uri: normalizeAssetUri(f.uri) || f.uri })),
           sticker: m.sticker ? { ...m.sticker, uri: normalizeAssetUri(m.sticker.uri) || m.sticker.uri } : undefined,
+          reactions: m.reactions?.map(r => ({ 
+            ...r, 
+            reaction: fixEncoding(r.reaction), 
+            actor: fixEncoding(r.actor) 
+          })),
         }))
         .sort((a, b) => a.timestamp_ms - b.timestamp_ms), // Sorting remains
       title: safeTitle,
