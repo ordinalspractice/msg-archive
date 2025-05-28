@@ -9,11 +9,9 @@ import {
   InputGroup,
   InputLeftElement,
   Heading,
-  Badge,
   Avatar,
   AvatarGroup,
   useColorModeValue,
-  Container,
   Icon,
   Skeleton,
   SkeletonText,
@@ -32,9 +30,7 @@ export const ConversationList: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
-  const hoverBg = useColorModeValue('gray.50', 'gray.700');
 
   const parseThreadMetadata = async (
     threadHandle: FileSystemDirectoryHandle,

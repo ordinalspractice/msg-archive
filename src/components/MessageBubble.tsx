@@ -33,13 +33,6 @@ interface MessageBubbleProps {
   searchQuery?: string;
 }
 
-interface LightboxSlide {
-  src?: string;
-  alt?: string;
-  type?: 'image' | 'video';
-  sources?: { src: string; type: string }[]; // For video plugin
-}
-
 // Helper component to manage individual media item loading and display
 interface MediaItemProps {
   uri: string;
@@ -233,26 +226,31 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   searchQuery = '',
 }) => {
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [lightboxSlides, setLightboxSlides] = useState<LightboxSlide[]>([]);
+  const [lightboxSlides, setLightboxSlides] = useState<any[]>([]);
   const [currentLightboxIndex, setCurrentLightboxIndex] = useState(0);
 
-  const { currentUserName, directoryHandle } = useAppContext(); // Get directoryHandle for MediaItem
+  const { currentUserName, directoryHandle } = useAppContext();
+
+  const otherTextColor = useColorModeValue('gray.800', 'whiteAlpha.900');
+  const otherMetaTextColor = useColorModeValue('gray.500', 'gray.400');
+  const tooltipBg = useColorModeValue('gray.700', 'gray.300');
+  const tooltipColor = useColorModeValue('white', 'gray.800');
 
   const isMyMessage = currentUserName && message.sender_name === currentUserName;
 
   const myMessageBg = useColorModeValue(
-    isHighlighted ? 'yellow.200' : 'blue.500', // Slightly different highlight for own messages
+    isHighlighted ? 'yellow.200' : 'blue.500',
     isHighlighted ? 'yellow.700' : 'blue.600',
   );
 
   const otherMessageBg = useColorModeValue(
     isHighlighted ? 'yellow.100' : 'gray.100',
-    isHighlighted ? 'yellow.800' : 'gray.700', // Darker highlight for others in dark mode
+    isHighlighted ? 'yellow.800' : 'gray.700',
   );
 
   const bgColor = isMyMessage ? myMessageBg : otherMessageBg;
-  const textColor = isMyMessage ? 'white' : useColorModeValue('gray.800', 'whiteAlpha.900');
-  const metaTextColor = isMyMessage ? 'blue.100' : useColorModeValue('gray.500', 'gray.400');
+  const textColor = isMyMessage ? 'white' : otherTextColor;
+  const metaTextColor = isMyMessage ? 'blue.100' : otherMetaTextColor;
 
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -315,7 +313,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       return () => {}; // Return an empty cleanup function
     }
 
-    const newResolvedSlides: LightboxSlide[] = [];
+    const newResolvedSlides: any[] = [];
     let active = true; // To prevent state updates on unmounted component
 
     const processMedia = async () => {
@@ -400,12 +398,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     return () => {
       // Cleanup function
       active = false;
-      newResolvedSlides.forEach((slide) => {
+      newResolvedSlides.forEach((slide: any) => {
         if (slide.src && slide.src.startsWith('blob:')) {
           URL.revokeObjectURL(slide.src);
         }
         if (slide.type === 'video' && slide.sources) {
-          slide.sources.forEach((source) => {
+          slide.sources.forEach((source: any) => {
             if (source.src.startsWith('blob:')) {
               URL.revokeObjectURL(source.src);
             }
@@ -588,8 +586,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                       label={tooltipLabel}
                       placement="top"
                       hasArrow
-                      bg={useColorModeValue('gray.700', 'gray.300')}
-                      color={useColorModeValue('white', 'gray.800')}
+                      bg={tooltipBg}
+                      color={tooltipColor}
                     >
                       <Badge
                         colorScheme={isMyMessage ? 'whiteAlpha' : 'gray'}

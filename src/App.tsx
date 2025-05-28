@@ -1,4 +1,3 @@
-import React from 'react';
 import { ChakraProvider, Box, Flex } from '@chakra-ui/react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useAppContext } from './context/AppContext';

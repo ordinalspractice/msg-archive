@@ -2,7 +2,6 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
-  Container,
   VStack,
   HStack,
   Text,
@@ -24,7 +23,6 @@ import { MessageList, type MessageListHandle } from '../components/MessageList';
 import { SearchBar } from '../components/SearchBar';
 import { MessageTimeline } from '../components/MessageTimeline';
 import { Settings } from '../components/Settings';
-import { DebugUserDetection } from '../components/DebugUserDetection';
 import { logger } from '../utils/logger';
 import type { ParsedThread } from '../types/messenger';
 
@@ -41,7 +39,6 @@ export const ConversationView: React.FC = () => {
     parseProgress,
     setParseProgress,
     currentUserName,
-    setCurrentUserName,
   } = useAppContext();
 
   const [thread, setThread] = useState<ParsedThread | null>(null);

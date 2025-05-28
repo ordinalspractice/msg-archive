@@ -60,7 +60,7 @@ export function useMessageParser(options: UseMessageParserOptions = {}) {
   const parseThread = useCallback(
     (directoryHandle: FileSystemDirectoryHandle, threadPath: string) => {
       if (!workerRef.current) {
-        logger.error('WORKER_NOT_INITIALIZED');
+        logger.error('WORKER_NOT_INITIALIZED', 'Worker is not initialized');
         return;
       }
 
