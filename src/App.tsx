@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChakraProvider, Box, Container } from '@chakra-ui/react';
+import { ChakraProvider, Box, Flex } from '@chakra-ui/react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useAppContext } from './context/AppContext';
 import { FolderPicker } from './components/FolderPicker';
@@ -12,9 +12,24 @@ function AppContent() {
 
   if (!directoryHandle) {
     return (
-      <Container maxW="container.lg" py={10}>
-        <FolderPicker onDirectorySelected={setDirectoryHandle} />
-      </Container>
+      <Flex 
+        minH="100vh" 
+        align="center" 
+        justify="center" 
+        bg="gray.50"
+        px={4}
+      >
+        <Box 
+          maxW="md" 
+          w="full" 
+          bg="white" 
+          p={8} 
+          borderRadius="xl" 
+          boxShadow="lg"
+        >
+          <FolderPicker onDirectorySelected={setDirectoryHandle} />
+        </Box>
+      </Flex>
     );
   }
 
@@ -33,7 +48,7 @@ function App() {
       <ErrorBoundary>
         <AppProvider>
           <Router>
-            <Box minH="100vh" bg="gray.50">
+            <Box minH="100vh" bg="gray.50" w="100vw" overflow="hidden">
               <AppContent />
             </Box>
           </Router>

@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import type { ParsedThread, ThreadMetadata } from '../types/messenger';
+import { detectUserName } from '../utils/userDetection';
+import { logger } from '../utils/logger';
 
 interface AppContextType {
   directoryHandle: FileSystemDirectoryHandle | null;
@@ -14,6 +16,8 @@ interface AppContextType {
   parseProgress: Map<string, number>;
   setParseProgress: (threadId: string, progress: number) => void;
   loadInitialThreads: (initialThreads: ThreadMetadata[]) => void;
+  currentUserName: string | null;
+  setCurrentUserName: (name: string | null) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -36,6 +40,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [threadMetadata, setThreadMetadataState] = useState<ThreadMetadata[]>([]);
   const [threadLoadingStates, setThreadLoadingStates] = useState<Map<string, boolean>>(new Map());
   const [parseProgress, setParseProgressState] = useState<Map<string, number>>(new Map());
+  const [currentUserName, setCurrentUserName] = useState<string | null>(null);
+  const [isDetectingUser, setIsDetectingUser] = useState(false);
 
   const loadInitialThreads = useCallback((initialThreads: ThreadMetadata[]) => {
     // Sort initial threads by title (folder name) alphabetically
@@ -121,6 +127,42 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     });
   }, []);
 
+  // Simple auto-detection when directory is selected
+  useEffect(() => {
+    let mounted = true;
+    
+    const autoDetectUser = async () => {
+      if (directoryHandle && !currentUserName && !isDetectingUser) {
+        setIsDetectingUser(true);
+        logger.debug('DETECTING_USER_FROM_AUTOFILL');
+        
+        try {
+          const detectedName = await detectUserName(directoryHandle);
+          if (mounted && detectedName) {
+            setCurrentUserName(detectedName);
+            logger.debug('USER_DETECTED_SUCCESS', { detectedName });
+          } else if (mounted) {
+            logger.debug('USER_DETECTION_FAILED_NO_AUTOFILL');
+          }
+        } catch (error) {
+          if (mounted) {
+            logger.error('USER_DETECTION_ERROR', error);
+          }
+        } finally {
+          if (mounted) {
+            setIsDetectingUser(false);
+          }
+        }
+      }
+    };
+
+    autoDetectUser();
+    
+    return () => {
+      mounted = false;
+    };
+  }, [directoryHandle]); // Remove currentUserName and isDetectingUser from dependencies to prevent loop
+
   const value: AppContextType = {
     directoryHandle,
     setDirectoryHandle,
@@ -134,6 +176,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     parseProgress,
     setParseProgress,
     loadInitialThreads,
+    currentUserName,
+    setCurrentUserName,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

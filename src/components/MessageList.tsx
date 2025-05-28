@@ -72,7 +72,7 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, searchQuery 
       const isHighlighted = searchQuery && isMessageHighlighted(index);
 
       return (
-        <Box py={1} px={4}>
+        <Box px={4}>
           <MessageBubble
             message={message}
             isHighlighted={isHighlighted}
@@ -85,7 +85,11 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, searchQuery 
   );
 
   return (
-    <Box bg="white" borderRadius="lg" shadow="sm" overflow="hidden" h="600px">
+    <Box 
+      bg="gray.50" 
+      h="full"
+      py={4}
+    >
       <Virtuoso
         ref={virtuosoRef}
         data={messages}
@@ -93,6 +97,7 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, searchQuery 
         overscan={200}
         initialTopMostItemIndex={messages.length - 1}
         followOutput="smooth"
+        style={{ height: '100%' }}
       />
     </Box>
   );

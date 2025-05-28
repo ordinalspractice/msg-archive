@@ -13,6 +13,9 @@ import {
   Spinner,
   Center,
   useDisclosure,
+  Alert,
+  AlertIcon,
+  Button,
 } from '@chakra-ui/react';
 import { FiArrowLeft, FiSettings } from 'react-icons/fi';
 import { useAppContext } from '../context/AppContext';
@@ -21,6 +24,7 @@ import { MessageList } from '../components/MessageList';
 import { SearchBar } from '../components/SearchBar';
 import { TimelineHeatmap } from '../components/TimelineHeatmap';
 import { Settings } from '../components/Settings';
+import { DebugUserDetection } from '../components/DebugUserDetection';
 import { logger } from '../utils/logger';
 import type { ParsedThread } from '../types/messenger';
 
@@ -36,6 +40,8 @@ export const ConversationView: React.FC = () => {
     setThreadLoading,
     parseProgress,
     setParseProgress,
+    currentUserName,
+    setCurrentUserName,
   } = useAppContext();
 
   const [thread, setThread] = useState<ParsedThread | null>(null);
@@ -89,6 +95,8 @@ export const ConversationView: React.FC = () => {
     onError: handleError,
   });
 
+  // User detection is handled globally in AppContext - no per-conversation detection
+
   useEffect(() => {
     if (!directoryHandle || !decodedThreadId) {
       navigate('/');
@@ -125,56 +133,78 @@ export const ConversationView: React.FC = () => {
   const progress = parseProgress.get(decodedThreadId);
   const loading = isThreadLoading(decodedThreadId);
 
+  // Now we can safely do conditional rendering after all hooks are called
   if (loading && !thread) {
     return (
-      <Container maxW="container.xl" py={8}>
-        <VStack spacing={8}>
-          <HStack w="full">
-            <IconButton
-              aria-label="Back"
-              icon={<FiArrowLeft />}
-              onClick={handleBack}
-              variant="ghost"
-            />
-            <Heading size="lg" flex={1}>
-              Loading Conversation...
-            </Heading>
-          </HStack>
+      <Box h="100vh" bg="gray.50" w="full" display="flex" flexDirection="column" overflow="hidden">
+        {/* Header */}
+        <Box
+          bg="white"
+          borderBottomWidth="1px"
+          borderColor="gray.200"
+          px={{ base: 2, md: 4 }}
+          py={4}
+          boxShadow="sm"
+        >
+          <Box maxW="1200px" mx="auto" w="full">
+            <HStack>
+              <IconButton
+                aria-label="Back"
+                icon={<FiArrowLeft />}
+                onClick={handleBack}
+                variant="ghost"
+                size="lg"
+              />
+              <Heading size="md" color="gray.800">
+                Loading Conversation...
+              </Heading>
+            </HStack>
+          </Box>
+        </Box>
 
-          <Box w="full" bg="white" p={8} borderRadius="lg" shadow="sm">
-            <VStack spacing={4}>
+        {/* Loading Content */}
+        <Box maxW="1200px" mx="auto" px={4} py={8}>
+          <Box bg="white" p={8} borderRadius="lg" boxShadow="sm">
+            <VStack spacing={6}>
               <Spinner size="xl" color="blue.500" />
-              <Text color="gray.600">Parsing messages...</Text>
+              <Text color="gray.600" fontSize="lg">
+                Parsing messages...
+              </Text>
               {progress !== undefined && (
-                <>
-                  <Progress value={progress} w="full" colorScheme="blue" />
-                  <Text fontSize="sm" color="gray.500">
+                <Box w="full" maxW="md">
+                  <Progress value={progress} w="full" colorScheme="blue" size="lg" />
+                  <Text fontSize="sm" color="gray.500" textAlign="center" mt={2}>
                     {progress}% complete
                   </Text>
-                </>
+                </Box>
               )}
             </VStack>
           </Box>
-        </VStack>
-      </Container>
+        </Box>
+      </Box>
     );
   }
 
   if (!thread) {
     return (
-      <Container maxW="container.xl" py={8}>
-        <Center minH="400px">
-          <VStack>
-            <Text>Conversation not found</Text>
-            <IconButton
-              aria-label="Back"
-              icon={<FiArrowLeft />}
-              onClick={handleBack}
-              variant="ghost"
-            />
-          </VStack>
-        </Center>
-      </Container>
+      <Box h="100vh" bg="gray.50" w="full" display="flex" flexDirection="column" overflow="hidden">
+        <Box maxW="1200px" mx="auto" px={4} py={8}>
+          <Center minH="60vh">
+            <VStack spacing={4}>
+              <Text fontSize="lg" color="gray.600">
+                Conversation not found
+              </Text>
+              <IconButton
+                aria-label="Back"
+                icon={<FiArrowLeft />}
+                onClick={handleBack}
+                colorScheme="blue"
+                size="lg"
+              />
+            </VStack>
+          </Center>
+        </Box>
+      </Box>
     );
   }
 
@@ -182,41 +212,101 @@ export const ConversationView: React.FC = () => {
   const title = thread.title || participantNames || 'Conversation';
 
   return (
-    <Container maxW="container.xl" py={8}>
-      <VStack spacing={6} align="stretch">
-        <HStack>
-          <IconButton
-            aria-label="Back to conversations"
-            icon={<FiArrowLeft />}
-            onClick={handleBack}
-            variant="ghost"
+    <Box h="100vh" bg="gray.50" w="full" display="flex" flexDirection="column" overflow="hidden">
+      {/* Header */}
+      <Box
+        bg="white"
+        borderBottomWidth="1px"
+        borderColor="gray.200"
+        px={{ base: 2, md: 4 }}
+        py={4}
+        boxShadow="sm"
+        position="sticky"
+        top={0}
+        zIndex={10}
+      >
+        <Box maxW="1200px" mx="auto" w="full">
+          <HStack>
+            <IconButton
+              aria-label="Back to conversations"
+              icon={<FiArrowLeft />}
+              onClick={handleBack}
+              variant="ghost"
+              size="lg"
+            />
+            <Box flex={1}>
+              <Heading size="md" color="gray.800">
+                {title}
+              </Heading>
+              <Text color="gray.500" fontSize="sm">
+                {thread.messages.length} messages • {thread.participants.length} participants
+              </Text>
+            </Box>
+            <IconButton
+              aria-label="Settings"
+              icon={<FiSettings />}
+              onClick={onOpenSettings}
+              variant="ghost"
+              size="lg"
+            />
+          </HStack>
+        </Box>
+      </Box>
+
+      {/* Search and Timeline */}
+      <Box bg="white" borderBottomWidth="1px" borderColor="gray.200" px={{ base: 2, md: 4 }} py={3}>
+        <Box maxW="1200px" mx="auto" w="full">
+          <SearchBar
+            onSearch={setSearchQuery}
+            onToggleTimeline={() => setShowTimeline(!showTimeline)}
+            showTimeline={showTimeline}
           />
-          <Box flex={1}>
-            <Heading size="lg">{title}</Heading>
-            <Text color="gray.600" fontSize="sm">
-              {thread.messages.length} messages • {thread.participants.length} participants
-            </Text>
+        </Box>
+      </Box>
+
+      {showTimeline && (
+        <Box
+          bg="white"
+          borderBottomWidth="1px"
+          borderColor="gray.200"
+          px={{ base: 2, md: 4 }}
+          py={4}
+        >
+          <Box maxW="1200px" mx="auto" w="full">
+            <TimelineHeatmap messages={thread.messages} />
           </Box>
-          <IconButton
-            aria-label="Settings"
-            icon={<FiSettings />}
-            onClick={onOpenSettings}
-            variant="ghost"
-          />
-        </HStack>
+        </Box>
+      )}
 
-        <SearchBar
-          onSearch={setSearchQuery}
-          onToggleTimeline={() => setShowTimeline(!showTimeline)}
-          showTimeline={showTimeline}
-        />
+      {/* User identification banner */}
+      {!currentUserName && (
+        <Box
+          bg="blue.50"
+          borderBottomWidth="1px"
+          borderColor="blue.200"
+          px={{ base: 2, md: 4 }}
+          py={3}
+        >
+          <Box maxW="1200px" mx="auto" w="full">
+            <Alert status="info" borderRadius="md" bg="transparent" p={2}>
+              <AlertIcon color="blue.500" />
+              <Text fontSize="sm" color="blue.700" flex={1}>
+                To see your messages on the right (blue), set your name in settings.
+              </Text>
+              <Button size="xs" colorScheme="blue" variant="outline" onClick={onOpenSettings}>
+                Open Settings
+              </Button>
+            </Alert>
+          </Box>
+        </Box>
+      )}
 
-        {showTimeline && <TimelineHeatmap messages={thread.messages} />}
-
+      {/* Messages */}
+      <Box flex={1} maxW="1200px" mx="auto" w="full" px={{ base: 2, md: 4 }} minH={0} h="full">
         <MessageList messages={thread.messages} searchQuery={searchQuery} />
+      </Box>
 
-        <Settings isOpen={isSettingsOpen} onClose={onCloseSettings} />
-      </VStack>
-    </Container>
+      <Settings isOpen={isSettingsOpen} onClose={onCloseSettings} />
+    </Box>
   );
 };

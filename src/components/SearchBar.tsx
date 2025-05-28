@@ -29,8 +29,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   };
 
   return (
-    <HStack spacing={4}>
-      <InputGroup flex={1}>
+    <HStack spacing={3} w="full">
+      <InputGroup flex={1} maxW="md">
         <InputLeftElement pointerEvents="none">
           <Icon as={FiSearch} color="gray.400" />
         </InputLeftElement>
@@ -38,7 +38,11 @@ export const SearchBar: React.FC<SearchBarProps> = ({
           placeholder="Search messages..."
           value={query}
           onChange={(e) => handleSearch(e.target.value)}
-          bg="white"
+          bg="gray.50"
+          border="none"
+          borderRadius="full"
+          _focus={{ bg: "white", boxShadow: "outline" }}
+          _placeholder={{ color: "gray.500" }}
         />
       </InputGroup>
 
@@ -48,7 +52,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({
           icon={<Icon as={FiCalendar} />}
           onClick={onToggleTimeline}
           colorScheme={showTimeline ? 'blue' : 'gray'}
-          variant={showTimeline ? 'solid' : 'outline'}
+          variant={showTimeline ? 'solid' : 'ghost'}
+          borderRadius="full"
+          size="md"
         />
       </Tooltip>
     </HStack>

@@ -29,12 +29,12 @@ export function fixEncoding(text: string): string {
     const fixed = decodeURIComponent(escape(text));
 
     // Log only if something actually changed
-    if (fixed !== text) {
-      console.log('[encoding] Fixed mojibake:', {
-        original: text.substring(0, 100),
-        fixed: fixed.substring(0, 100),
-      });
-    }
+    // if (fixed !== text) {
+    //   console.log('[encoding] Fixed mojibake:', {
+    //     original: text.substring(0, 100),
+    //     fixed: fixed.substring(0, 100),
+    //   });
+    // }
 
     return fixed;
   } catch (e) {
@@ -49,12 +49,12 @@ export function fixEncoding(text: string): string {
       }
       const fallbackFixed = new TextDecoder('utf-8').decode(new Uint8Array(bytes));
 
-      if (fallbackFixed !== text) {
-        console.log('[encoding] Fallback fix applied:', {
-          original: text.substring(0, 100),
-          fixed: fallbackFixed.substring(0, 100),
-        });
-      }
+      // if (fallbackFixed !== text) {
+      //   console.log('[encoding] Fallback fix applied:', {
+      //     original: text.substring(0, 100),
+      //     fixed: fallbackFixed.substring(0, 100),
+      //   });
+      // }
 
       return fallbackFixed;
     } catch (e2) {
@@ -72,16 +72,16 @@ export function fixEncoding(text: string): string {
  * @returns Promise<string> - The content with encoding fixes applied
  */
 export async function readFileWithProperEncoding(file: File): Promise<string> {
-  console.log('[encoding] Reading file:', file.name);
+  // console.log('[encoding] Reading file:', file.name);
 
   try {
     // Read file as UTF-8 (Facebook JSON files are UTF-8, but contain mojibake strings)
     const rawText = await file.text();
-    console.log('[encoding] Raw text sample:', rawText.substring(0, 200));
+    // console.log('[encoding] Raw text sample:', rawText.substring(0, 200));
 
     // Apply mojibake fix to the entire file content
     const fixedText = fixEncoding(rawText);
-    console.log('[encoding] Fixed text sample:', fixedText.substring(0, 200));
+    // console.log('[encoding] Fixed text sample:', fixedText.substring(0, 200));
 
     return fixedText;
   } catch (error) {

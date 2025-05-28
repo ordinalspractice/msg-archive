@@ -24,6 +24,7 @@ import { logger } from '../utils/logger';
 import { readFileWithProperEncoding, fixEncoding } from '../utils/encoding';
 import { ThreadSchema } from '../types/messenger';
 import type { ThreadMetadata } from '../types/messenger';
+import { getAvatarColor } from '../utils/avatarColors';
 
 export const ConversationList: React.FC = () => {
   const navigate = useNavigate();
@@ -182,111 +183,144 @@ export const ConversationList: React.FC = () => {
   };
 
   return (
-    <Container maxW="container.xl" py={8}>
-      <VStack spacing={6} align="stretch">
-        <Box>
-          <HStack mb={4}>
-            <Icon as={FiMessageCircle} boxSize={8} color="blue.500" />
-            <Heading size="lg">Your Conversations</Heading>
-          </HStack>
-
-          <InputGroup>
-            <InputLeftElement pointerEvents="none">
-              <Icon as={FiSearch} color="gray.400" />
-            </InputLeftElement>
-            <Input
-              placeholder="Search conversations..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              bg={bgColor}
-            />
-          </InputGroup>
+    <Box minH="100vh" bg="gray.50" w="full">
+      {/* Header */}
+      <Box 
+        bg="white" 
+        borderBottomWidth="1px" 
+        borderColor={borderColor}
+        px={{ base: 2, md: 4 }} 
+        py={4}
+        position="sticky"
+        top={0}
+        zIndex={10}
+        boxShadow="sm"
+      >
+        <Box maxW="1200px" mx="auto" w="full">
+          <VStack spacing={4}>
+            <HStack w="full" justify="space-between">
+              <HStack>
+                <Icon as={FiMessageCircle} boxSize={6} color="blue.500" />
+                <Heading size="md" color="gray.800">Messenger Archive</Heading>
+              </HStack>
+            </HStack>
+            <InputGroup maxW="md">
+              <InputLeftElement pointerEvents="none">
+                <Icon as={FiSearch} color="gray.400" />
+              </InputLeftElement>
+              <Input
+                placeholder="Search conversations..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                bg="gray.50"
+                border="none"
+                _focus={{ bg: "white", boxShadow: "outline" }}
+                borderRadius="full"
+              />
+            </InputGroup>
+          </VStack>
         </Box>
+      </Box>
 
-        <Box>
+      {/* Content */}
+      <Box maxW="1200px" mx="auto" px={{ base: 2, md: 4 }} py={6} w="full">
+        <VStack spacing={0} align="stretch">
+
           {loading ? (
-            <VStack spacing={4} align="stretch">
-              {[...Array(5)].map((_, i) => (
+            <VStack spacing={0} align="stretch">
+              {[...Array(8)].map((_, i) => (
                 <Box
                   key={i}
                   p={4}
-                  bg={bgColor}
-                  borderRadius="lg"
-                  borderWidth="1px"
+                  bg="white"
+                  borderBottomWidth="1px"
                   borderColor={borderColor}
                 >
-                  <HStack spacing={4}>
-                    <Skeleton height="50px" width="50px" borderRadius="full" />
+                  <HStack spacing={3}>
+                    <Skeleton height="48px" width="48px" borderRadius="full" />
                     <Box flex={1}>
-                      <Skeleton height="20px" width="200px" mb={2} />
-                      <SkeletonText noOfLines={1} width="300px" />
+                      <Skeleton height="16px" width="60%" mb={2} />
+                      <SkeletonText noOfLines={1} width="40%" />
                     </Box>
+                    <Skeleton height="12px" width="50px" />
                   </HStack>
                 </Box>
               ))}
             </VStack>
           ) : filteredThreads.length === 0 ? (
             <Box
-              p={8}
-              bg={bgColor}
-              borderRadius="lg"
-              borderWidth="1px"
-              borderColor={borderColor}
+              p={12}
+              bg="white"
               textAlign="center"
+              borderRadius="lg"
+              mx={4}
             >
-              <Icon as={FiFolder} boxSize={12} color="gray.400" mb={4} />
-              <Text color="gray.500">
+              <Icon as={FiFolder} boxSize={16} color="gray.300" mb={4} />
+              <Text color="gray.500" fontSize="lg">
                 {searchQuery ? 'No conversations match your search' : 'No conversations found'}
               </Text>
             </Box>
           ) : (
-            <VStack spacing={4} align="stretch">
-              {filteredThreads.map((thread) => {
+            <Box bg="white" borderRadius="lg" overflow="hidden" boxShadow="sm">
+              {filteredThreads.map((thread, index) => {
                 const hasData = thread.totalMessages > 0;
 
                 return (
                   <Box
                     key={thread.id}
                     p={4}
-                    bg={bgColor}
-                    borderRadius="lg"
-                    borderWidth="1px"
-                    borderColor={borderColor}
                     cursor="pointer"
-                    transition="all 0.2s"
-                    _hover={{ bg: hoverBg, transform: 'translateY(-2px)', shadow: 'md' }}
+                    transition="all 0.15s ease"
+                    _hover={{ bg: "blue.50" }}
+                    borderBottomWidth={index < filteredThreads.length - 1 ? "1px" : "0"}
+                    borderColor={borderColor}
                     onClick={() => handleThreadClick(thread.id)}
                   >
-                    <HStack spacing={4}>
+                    <HStack spacing={3}>
                       <AvatarGroup size="md" max={2}>
                         {thread.participants.length > 0 ? (
-                          thread.participants.map((p, i) => <Avatar key={i} name={p.name} />)
+                          thread.participants.map((p, i) => (
+                            <Avatar 
+                              key={i} 
+                              name={p.name} 
+                              size="md"
+                              bg={getAvatarColor(p.name)}
+                              color="white"
+                            />
+                          ))
                         ) : (
-                          <Avatar name={thread.title} />
+                          <Avatar 
+                            name={thread.title || "Unknown"} 
+                            size="md"
+                            bg="gray.500"
+                            color="white"
+                          />
                         )}
                       </AvatarGroup>
 
-                      <Box flex={1}>
+                      <Box flex={1} minW={0}>
                         <HStack justify="space-between" mb={1}>
-                          <Text fontWeight="semibold" fontSize="lg">
+                          <Text 
+                            fontWeight="600" 
+                            fontSize="md"
+                            color="gray.900"
+                            isTruncated
+                            flex={1}
+                          >
                             {thread.title ||
                               thread.participants.map((p) => p.name).join(', ') ||
                               'Unknown Thread'}
                           </Text>
-                          {hasData && (
-                            <Badge colorScheme="blue" variant="subtle">
-                              {thread.totalMessages} messages
-                            </Badge>
-                          )}
+                          <Text fontSize="xs" color="gray.500">
+                            {hasData && formatDate(thread.lastMessageTime)}
+                          </Text>
                         </HStack>
 
-                        <HStack spacing={4} color="gray.500" fontSize="sm">
+                        <HStack spacing={2} color="gray.500" fontSize="sm">
                           {hasData ? (
-                            <>
-                              <Text>{thread.participants.length} participants</Text>
-                              <Text>•</Text>
-                              <Text>{formatDate(thread.lastMessageTime)}</Text>
-                            </>
+                            <Text isTruncated>
+                              {thread.participants.length} participant{thread.participants.length !== 1 ? 's' : ''} • {thread.totalMessages} messages
+                            </Text>
                           ) : (
                             <Text>Click to load messages</Text>
                           )}
@@ -296,10 +330,10 @@ export const ConversationList: React.FC = () => {
                   </Box>
                 );
               })}
-            </VStack>
+            </Box>
           )}
-        </Box>
-      </VStack>
-    </Container>
+        </VStack>
+      </Box>
+    </Box>
   );
 };

@@ -85,7 +85,7 @@ export const FolderPicker: React.FC<FolderPickerProps> = ({ onDirectorySelected 
     <VStack spacing={8} align="center" justify="center" minH="400px">
       <Icon as={FiFolder} boxSize={20} color="blue.500" />
       <VStack spacing={4}>
-        <Text fontSize="2xl" fontWeight="bold">
+        <Text fontSize="2xl" fontWeight="bold" textAlign="center">
           Welcome to Messenger Archive Viewer
         </Text>
         <Text color="gray.600" textAlign="center" maxW="500px">
