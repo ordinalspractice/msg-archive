@@ -22,10 +22,11 @@ function normalizeAssetUri(uri: string | undefined): string | undefined {
   // If "messages/" is not found, it might be an external URL or already relative.
   // Or it could be from a different export structure. For now, log a warning and return as is.
   // This covers cases like stickers that might already have a path relative to 'messages' if they are in 'stickers_used'
-  if (uri.startsWith('stickers_used/')) { // Stickers are directly under 'messages'
+  if (uri.startsWith('stickers_used/')) {
+    // Stickers are directly under 'messages'
     return uri;
   }
-  
+
   logDebug('UNEXPECTED_URI_FORMAT', { uri });
   // Potentially return uri or an empty string/undefined if it's an error
   // For safety, let's return the original uri if it doesn't match the expected pattern,
@@ -69,16 +70,24 @@ async function parseThreadFile(
           ...m,
           sender_name: fixEncoding(m.sender_name), // Fix sender names
           content: m.content ? fixEncoding(m.content) : undefined, // Ensure undefined if not present
-          photos: m.photos?.map(p => ({ ...p, uri: normalizeAssetUri(p.uri) || p.uri /* fallback */ })),
-          videos: m.videos?.map(v => ({ ...v, uri: normalizeAssetUri(v.uri) || v.uri })),
-          audio_files: m.audio_files?.map(a => ({ ...a, uri: normalizeAssetUri(a.uri) || a.uri })),
-          gifs: m.gifs?.map(g => ({ ...g, uri: normalizeAssetUri(g.uri) || g.uri })),
-          files: m.files?.map(f => ({ ...f, uri: normalizeAssetUri(f.uri) || f.uri })),
-          sticker: m.sticker ? { ...m.sticker, uri: normalizeAssetUri(m.sticker.uri) || m.sticker.uri } : undefined,
-          reactions: m.reactions?.map(r => ({ 
-            ...r, 
-            reaction: fixEncoding(r.reaction), 
-            actor: fixEncoding(r.actor) 
+          photos: m.photos?.map((p) => ({
+            ...p,
+            uri: normalizeAssetUri(p.uri) || p.uri /* fallback */,
+          })),
+          videos: m.videos?.map((v) => ({ ...v, uri: normalizeAssetUri(v.uri) || v.uri })),
+          audio_files: m.audio_files?.map((a) => ({
+            ...a,
+            uri: normalizeAssetUri(a.uri) || a.uri,
+          })),
+          gifs: m.gifs?.map((g) => ({ ...g, uri: normalizeAssetUri(g.uri) || g.uri })),
+          files: m.files?.map((f) => ({ ...f, uri: normalizeAssetUri(f.uri) || f.uri })),
+          sticker: m.sticker
+            ? { ...m.sticker, uri: normalizeAssetUri(m.sticker.uri) || m.sticker.uri }
+            : undefined,
+          reactions: m.reactions?.map((r) => ({
+            ...r,
+            reaction: fixEncoding(r.reaction),
+            actor: fixEncoding(r.actor),
           })),
         }))
         .sort((a, b) => a.timestamp_ms - b.timestamp_ms), // Sorting remains

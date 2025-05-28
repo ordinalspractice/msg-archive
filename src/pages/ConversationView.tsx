@@ -22,7 +22,7 @@ import { useAppContext } from '../context/AppContext';
 import { useMessageParser } from '../hooks/useMessageParser';
 import { MessageList, type MessageListHandle } from '../components/MessageList';
 import { SearchBar } from '../components/SearchBar';
-import { TimelineHeatmap } from '../components/TimelineHeatmap';
+import { MessageTimeline } from '../components/MessageTimeline';
 import { Settings } from '../components/Settings';
 import { DebugUserDetection } from '../components/DebugUserDetection';
 import { logger } from '../utils/logger';
@@ -46,9 +46,9 @@ export const ConversationView: React.FC = () => {
 
   const [thread, setThread] = useState<ParsedThread | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showTimeline, setShowTimeline] = useState(false);
   const [searchResultCount, setSearchResultCount] = useState(0);
   const [currentSearchResultIndex, setCurrentSearchResultIndex] = useState(-1); // 0-based internal index
+  const [currentVisibleDateInList, setCurrentVisibleDateInList] = useState<Date | null>(null);
   const messageListRef = useRef<MessageListHandle>(null);
   const {
     isOpen: isSettingsOpen,
@@ -58,10 +58,13 @@ export const ConversationView: React.FC = () => {
 
   const decodedThreadId = threadId ? decodeURIComponent(threadId) : '';
 
-  const handleUpdateSearchResults = useCallback((count: number, currentIndexInResultsArray: number) => {
-    setSearchResultCount(count);
-    setCurrentSearchResultIndex(currentIndexInResultsArray);
-  }, []);
+  const handleUpdateSearchResults = useCallback(
+    (count: number, currentIndexInResultsArray: number) => {
+      setSearchResultCount(count);
+      setCurrentSearchResultIndex(currentIndexInResultsArray);
+    },
+    [],
+  );
 
   const handleNavigateNextResult = useCallback(() => {
     messageListRef.current?.navigateToNextResult();
@@ -70,6 +73,66 @@ export const ConversationView: React.FC = () => {
   const handleNavigatePrevResult = useCallback(() => {
     messageListRef.current?.navigateToPrevResult();
   }, []);
+
+  const handleVisibleDateChanged = useCallback((date: Date | null) => {
+    setCurrentVisibleDateInList(date);
+  }, []);
+
+  const handleTimeRangeSelect = useCallback(
+    (startDate: Date, endDate: Date) => {
+      if (!thread || !messageListRef.current) return;
+
+      const startTimestamp = startDate.getTime();
+      const endTimestamp = endDate.getTime();
+
+      // Find the first message in the selected time range
+      let messageIndex = -1;
+      for (let i = 0; i < thread.messages.length; i++) {
+        const msgTimestamp = thread.messages[i].timestamp_ms;
+        if (msgTimestamp >= startTimestamp && msgTimestamp <= endTimestamp) {
+          messageIndex = i;
+          break;
+        }
+      }
+
+      if (messageIndex !== -1) {
+        messageListRef.current?.scrollToIndex(messageIndex, { align: 'start', behavior: 'smooth' });
+        setCurrentVisibleDateInList(startDate);
+      } else {
+        // Find the closest message before or after the range
+        let closestIndex = -1;
+        let closestDistance = Infinity;
+
+        for (let i = 0; i < thread.messages.length; i++) {
+          const msgTimestamp = thread.messages[i].timestamp_ms;
+          const distance = Math.min(
+            Math.abs(msgTimestamp - startTimestamp),
+            Math.abs(msgTimestamp - endTimestamp),
+          );
+
+          if (distance < closestDistance) {
+            closestDistance = distance;
+            closestIndex = i;
+          }
+        }
+
+        if (closestIndex !== -1) {
+          messageListRef.current?.scrollToIndex(closestIndex, {
+            align: 'start',
+            behavior: 'smooth',
+          });
+          toast({
+            title: 'Navigated to closest messages',
+            description: `No messages in selected range. Showing closest messages.`,
+            status: 'info',
+            duration: 2000,
+            isClosable: true,
+          });
+        }
+      }
+    },
+    [thread, toast],
+  );
 
   const handleThreadParsed = useCallback(
     (parsedThread: ParsedThread) => {
@@ -269,34 +332,41 @@ export const ConversationView: React.FC = () => {
         </Box>
       </Box>
 
-      {/* Search and Timeline */}
-      <Box bg="white" borderBottomWidth="1px" borderColor="gray.200" px={{ base: 2, md: 4 }} py={3}>
-        <Box maxW="1200px" mx="auto" w="full">
-          <SearchBar
-            onSearch={setSearchQuery}
-            onToggleTimeline={() => setShowTimeline(!showTimeline)}
-            showTimeline={showTimeline}
-            searchResultCount={searchResultCount}
-            currentResultIndex={currentSearchResultIndex === -1 ? 0 : currentSearchResultIndex + 1} // Display 1-based
-            onNavigateNext={handleNavigateNextResult}
-            onNavigatePrev={handleNavigatePrevResult}
-          />
-        </Box>
-      </Box>
-
-      {showTimeline && (
-        <Box
-          bg="white"
-          borderBottomWidth="1px"
-          borderColor="gray.200"
-          px={{ base: 2, md: 4 }}
-          py={4}
-        >
+      {/* Sticky Header: Search and Timeline */}
+      <Box
+        position="sticky"
+        top={0}
+        zIndex={10}
+        bg="white"
+        borderBottomWidth="1px"
+        borderColor="gray.200"
+        boxShadow="sm"
+      >
+        {/* Search Bar */}
+        <Box px={{ base: 2, md: 4 }} py={3}>
           <Box maxW="1200px" mx="auto" w="full">
-            <TimelineHeatmap messages={thread.messages} />
+            <SearchBar
+              onSearch={setSearchQuery}
+              searchResultCount={searchResultCount}
+              currentResultIndex={
+                currentSearchResultIndex === -1 ? 0 : currentSearchResultIndex + 1
+              } // Display 1-based
+              onNavigateNext={handleNavigateNextResult}
+              onNavigatePrev={handleNavigatePrevResult}
+            />
           </Box>
         </Box>
-      )}
+        {/* Timeline (always visible) */}
+        <Box px={{ base: 2, md: 4 }} py={3}>
+          <Box maxW="1200px" mx="auto" w="full">
+            <MessageTimeline
+              messages={thread.messages}
+              onTimeRangeSelect={handleTimeRangeSelect}
+              currentVisibleDate={currentVisibleDateInList}
+            />
+          </Box>
+        </Box>
+      </Box>
 
       {/* User identification banner */}
       {!currentUserName && (
@@ -323,11 +393,12 @@ export const ConversationView: React.FC = () => {
 
       {/* Messages */}
       <Box flex={1} maxW="1200px" mx="auto" w="full" px={{ base: 2, md: 4 }} minH={0} h="full">
-        <MessageList 
+        <MessageList
           ref={messageListRef}
-          messages={thread.messages} 
+          messages={thread.messages}
           searchQuery={searchQuery}
           onUpdateSearchResults={handleUpdateSearchResults}
+          onVisibleDateChanged={handleVisibleDateChanged}
         />
       </Box>
 

@@ -92,7 +92,7 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     if (userName.trim()) {
       setCurrentUserName(userName.trim());
     }
-    
+
     // Save API key if provided
     if (apiKey) {
       setIsValidating(true);
@@ -177,7 +177,8 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                     <strong>⚠️ Could not auto-detect your name.</strong>
                   </Text>
                   <Text fontSize="xs" color="orange.600">
-                    Please enter your name below to see your messages on the right with blue bubbles.
+                    Please enter your name below to see your messages on the right with blue
+                    bubbles.
                   </Text>
                   <Text fontSize="xs" color="gray.500">
                     🔍 Tried: autofill_information.json and message frequency analysis
@@ -190,28 +191,39 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
               <FormLabel>
                 <HStack>
                   <Icon as={FiUser} />
-                  <Text>{currentUserName ? 'Override Detected Name' : 'Your Name (Required for message alignment)'}</Text>
+                  <Text>
+                    {currentUserName
+                      ? 'Override Detected Name'
+                      : 'Your Name (Required for message alignment)'}
+                  </Text>
                 </HStack>
               </FormLabel>
               <Input
-                placeholder={currentUserName ? `Currently: ${currentUserName}` : "Enter your name exactly as it appears in the messages"}
+                placeholder={
+                  currentUserName
+                    ? `Currently: ${currentUserName}`
+                    : 'Enter your name exactly as it appears in the messages'
+                }
                 value={userName}
                 onChange={(e) => handleUserNameChange(e.target.value)}
-                bg={currentUserName ? "green.50" : "yellow.50"}
-                borderColor={currentUserName ? "green.300" : "yellow.300"}
-                _focus={{ 
-                  borderColor: currentUserName ? "green.500" : "yellow.500", 
-                  boxShadow: currentUserName ? "0 0 0 1px var(--chakra-colors-green-500)" : "0 0 0 1px var(--chakra-colors-yellow-500)" 
+                bg={currentUserName ? 'green.50' : 'yellow.50'}
+                borderColor={currentUserName ? 'green.300' : 'yellow.300'}
+                _focus={{
+                  borderColor: currentUserName ? 'green.500' : 'yellow.500',
+                  boxShadow: currentUserName
+                    ? '0 0 0 1px var(--chakra-colors-green-500)'
+                    : '0 0 0 1px var(--chakra-colors-yellow-500)',
                 }}
               />
-              <FormHelperText color={currentUserName ? "green.600" : "orange.600"}>
+              <FormHelperText color={currentUserName ? 'green.600' : 'orange.600'}>
                 {currentUserName ? (
-                  "💡 Auto-detection worked! You can override the detected name if needed."
+                  '💡 Auto-detection worked! You can override the detected name if needed.'
                 ) : (
                   <VStack align="start" spacing={1}>
                     <Text>💡 Enter your name exactly as it appears in the messages.</Text>
                     <Text fontSize="xs" color="gray.500">
-                      🔧 Debug: Check browser console for detection logs, or try refreshing after selecting the messages folder.
+                      🔧 Debug: Check browser console for detection logs, or try refreshing after
+                      selecting the messages folder.
                     </Text>
                   </VStack>
                 )}

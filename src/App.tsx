@@ -12,21 +12,8 @@ function AppContent() {
 
   if (!directoryHandle) {
     return (
-      <Flex 
-        minH="100vh" 
-        align="center" 
-        justify="center" 
-        bg="gray.50"
-        px={4}
-      >
-        <Box 
-          maxW="md" 
-          w="full" 
-          bg="white" 
-          p={8} 
-          borderRadius="xl" 
-          boxShadow="lg"
-        >
+      <Flex minH="100vh" align="center" justify="center" bg="gray.50" px={4}>
+        <Box maxW="md" w="full" bg="white" p={8} borderRadius="xl" boxShadow="lg">
           <FolderPicker onDirectorySelected={setDirectoryHandle} />
         </Box>
       </Flex>

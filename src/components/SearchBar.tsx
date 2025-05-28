@@ -10,12 +10,10 @@ import {
   Text,
   VStack,
 } from '@chakra-ui/react';
-import { FiSearch, FiCalendar, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+import { FiSearch, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 
 interface SearchBarProps {
   onSearch: (query: string) => void;
-  onToggleTimeline: () => void;
-  showTimeline: boolean;
   searchResultCount: number;
   currentResultIndex: number; // 1-based for display
   onNavigateNext: () => void;
@@ -24,8 +22,6 @@ interface SearchBarProps {
 
 export const SearchBar: React.FC<SearchBarProps> = ({
   onSearch,
-  onToggleTimeline,
-  showTimeline,
   searchResultCount,
   currentResultIndex,
   onNavigateNext,
@@ -48,7 +44,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   return (
     <VStack spacing={2} w="full" align="stretch">
       <HStack spacing={3} w="full">
-        <InputGroup flex={1} maxW="md">
+        <InputGroup flex={1}>
           <InputLeftElement pointerEvents="none">
             <Icon as={FiSearch} color="gray.400" />
           </InputLeftElement>
@@ -60,8 +56,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             bg="gray.50"
             border="none"
             borderRadius="full"
-            _focus={{ bg: "white", boxShadow: "outline" }}
-            _placeholder={{ color: "gray.500" }}
+            _focus={{ bg: 'white', boxShadow: 'outline' }}
+            _placeholder={{ color: 'gray.500' }}
           />
         </InputGroup>
 
@@ -92,32 +88,19 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             </Tooltip>
           </HStack>
         )}
-
-        <Tooltip label={showTimeline ? 'Hide timeline' : 'Show timeline'}>
-          <IconButton
-            aria-label="Toggle timeline"
-            icon={<Icon as={FiCalendar} />}
-            onClick={onToggleTimeline}
-            colorScheme={showTimeline ? 'blue' : 'gray'}
-            variant={showTimeline ? 'solid' : 'ghost'}
-            borderRadius="full"
-            size="md"
-          />
-        </Tooltip>
       </HStack>
 
       {/* Search result count */}
       {query && (
         <HStack justify="start" pl={2}>
           <Text fontSize="sm" color="gray.600">
-            {searchResultCount === 0 
-              ? 'No results found' 
-              : searchResultCount === 1 
+            {searchResultCount === 0
+              ? 'No results found'
+              : searchResultCount === 1
                 ? '1 result found'
-                : currentResultIndex > 0 
+                : currentResultIndex > 0
                   ? `Result ${currentResultIndex} of ${searchResultCount}`
-                  : `${searchResultCount} results found`
-            }
+                  : `${searchResultCount} results found`}
           </Text>
         </HStack>
       )}

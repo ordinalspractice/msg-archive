@@ -49,7 +49,13 @@ interface MediaItemProps {
   fileName?: string; // For file attachments
 }
 
-const MediaItem: React.FC<MediaItemProps> = ({ uri, altText, itemType, onMediaClick, fileName }) => {
+const MediaItem: React.FC<MediaItemProps> = ({
+  uri,
+  altText,
+  itemType,
+  onMediaClick,
+  fileName,
+}) => {
   const { directoryHandle } = useAppContext();
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -86,32 +92,43 @@ const MediaItem: React.FC<MediaItemProps> = ({ uri, altText, itemType, onMediaCl
 
         let currentFsHandle = directoryHandle;
         for (const segment of pathSegments) {
-          if (segment === '.' || segment === '' || segment === 'your_facebook_activity' || segment === 'messages') {
-             // Skip '.', '', and ignore potential "your_facebook_activity/messages/" prefix if it somehow remains
+          if (
+            segment === '.' ||
+            segment === '' ||
+            segment === 'your_facebook_activity' ||
+            segment === 'messages'
+          ) {
+            // Skip '.', '', and ignore potential "your_facebook_activity/messages/" prefix if it somehow remains
             if (segment === 'messages' && uri.startsWith('messages/')) {
-                // This case should ideally not happen if worker normalized correctly,
-                // but as a safeguard, if URI starts with "messages/", we assume directoryHandle is already "messages"
-                // and we should not try to get "messages" dir handle again from itself.
-                continue;
+              // This case should ideally not happen if worker normalized correctly,
+              // but as a safeguard, if URI starts with "messages/", we assume directoryHandle is already "messages"
+              // and we should not try to get "messages" dir handle again from itself.
+              continue;
             } else if (segment === 'your_facebook_activity') {
-                continue; // This segment should have been stripped by worker.
-            } else if (segment) { // Ensure segment is not empty before trying to get handle
-                 currentFsHandle = await currentFsHandle.getDirectoryHandle(segment);
+              continue; // This segment should have been stripped by worker.
+            } else if (segment) {
+              // Ensure segment is not empty before trying to get handle
+              currentFsHandle = await currentFsHandle.getDirectoryHandle(segment);
             }
           } else {
-             currentFsHandle = await currentFsHandle.getDirectoryHandle(segment);
+            currentFsHandle = await currentFsHandle.getDirectoryHandle(segment);
           }
         }
-        
+
         const fileHandle = await currentFsHandle.getFileHandle(fileName);
         const file = await fileHandle.getFile();
-        
+
         currentObjectUrl = URL.createObjectURL(file);
         if (isActive) {
           setObjectUrl(currentObjectUrl);
         }
       } catch (err: any) {
-        logger.error('MEDIA_LOAD_ERROR', { uri, type:itemType, error: err.message, stack: err.stack });
+        logger.error('MEDIA_LOAD_ERROR', {
+          uri,
+          type: itemType,
+          error: err.message,
+          stack: err.stack,
+        });
         if (isActive) {
           setError(`Failed: ${fileName || uri}`);
         }
@@ -126,7 +143,8 @@ const MediaItem: React.FC<MediaItemProps> = ({ uri, altText, itemType, onMediaCl
 
     return () => {
       isActive = false;
-      if (currentObjectUrl && !currentObjectUrl.startsWith('http')) { // Don't revoke external URLs
+      if (currentObjectUrl && !currentObjectUrl.startsWith('http')) {
+        // Don't revoke external URLs
         URL.revokeObjectURL(currentObjectUrl);
         logger.debug('MEDIA_URL_REVOKED', { url: currentObjectUrl });
       }
@@ -140,7 +158,9 @@ const MediaItem: React.FC<MediaItemProps> = ({ uri, altText, itemType, onMediaCl
   if (error) {
     return (
       <Box p={1} borderWidth="1px" borderRadius="md" borderColor="red.300" bg="red.50" maxW="150px">
-        <Text fontSize="xs" color="red.500" isTruncated title={error}>{error}</Text>
+        <Text fontSize="xs" color="red.500" isTruncated title={error}>
+          {error}
+        </Text>
       </Box>
     );
   }
@@ -155,9 +175,9 @@ const MediaItem: React.FC<MediaItemProps> = ({ uri, altText, itemType, onMediaCl
         <Image
           src={objectUrl}
           alt={altText}
-          maxH={itemType === 'sticker' ? "100px" : "200px"} // Stickers usually smaller
+          maxH={itemType === 'sticker' ? '100px' : '200px'} // Stickers usually smaller
           borderRadius="md"
-          cursor={onMediaClick ? "pointer" : "default"}
+          cursor={onMediaClick ? 'pointer' : 'default'}
           onClick={onMediaClick}
           loading="lazy"
           objectFit="contain"
@@ -178,7 +198,7 @@ const MediaItem: React.FC<MediaItemProps> = ({ uri, altText, itemType, onMediaCl
       );
     case 'audio':
       return (
-         <HStack>
+        <HStack>
           <Icon as={FiMusic} />
           <ReactPlayer
             url={objectUrl}
@@ -191,15 +211,21 @@ const MediaItem: React.FC<MediaItemProps> = ({ uri, altText, itemType, onMediaCl
       );
     case 'file':
       return (
-        <Button as={Link} href={objectUrl} download={fileName || 'download'} leftIcon={<FiDownload />} size="sm" variant="outline">
+        <Button
+          as={Link}
+          href={objectUrl}
+          download={fileName || 'download'}
+          leftIcon={<FiDownload />}
+          size="sm"
+          variant="outline"
+        >
           {fileName || 'Download File'}
         </Button>
-      )
+      );
     default:
       return null;
   }
 };
-
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
@@ -209,16 +235,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxSlides, setLightboxSlides] = useState<LightboxSlide[]>([]);
   const [currentLightboxIndex, setCurrentLightboxIndex] = useState(0);
-  
+
   const { currentUserName, directoryHandle } = useAppContext(); // Get directoryHandle for MediaItem
 
   const isMyMessage = currentUserName && message.sender_name === currentUserName;
-  
+
   const myMessageBg = useColorModeValue(
     isHighlighted ? 'yellow.200' : 'blue.500', // Slightly different highlight for own messages
     isHighlighted ? 'yellow.700' : 'blue.600',
   );
-  
+
   const otherMessageBg = useColorModeValue(
     isHighlighted ? 'yellow.100' : 'gray.100',
     isHighlighted ? 'yellow.800' : 'gray.700', // Darker highlight for others in dark mode
@@ -227,7 +253,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const bgColor = isMyMessage ? myMessageBg : otherMessageBg;
   const textColor = isMyMessage ? 'white' : useColorModeValue('gray.800', 'whiteAlpha.900');
   const metaTextColor = isMyMessage ? 'blue.100' : useColorModeValue('gray.500', 'gray.400');
-
 
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -238,10 +263,18 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     if (!text) return '';
     if (!searchQuery) return text;
 
-    const parts = text.split(new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
+    const parts = text.split(
+      new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'),
+    );
     return parts.map((part, i) =>
       part.toLowerCase() === searchQuery.toLowerCase() ? (
-        <Text as="mark" key={i} bg={isMyMessage ? "yellow.400" : "yellow.200"} color={isMyMessage ? "black" : "black"} px="1px">
+        <Text
+          as="mark"
+          key={i}
+          bg={isMyMessage ? 'yellow.400' : 'yellow.200'}
+          color={isMyMessage ? 'black' : 'black'}
+          px="1px"
+        >
           {part}
         </Text>
       ) : (
@@ -257,11 +290,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     }
 
     const reactionMap = new Map<string, string[]>();
-    
-    message.reactions.forEach(reaction => {
+
+    message.reactions.forEach((reaction) => {
       const emoji = reaction.reaction;
       const actor = reaction.actor;
-      
+
       if (reactionMap.has(emoji)) {
         reactionMap.get(emoji)!.push(actor);
       } else {
@@ -272,7 +305,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     return Array.from(reactionMap.entries()).map(([emoji, actors]) => ({
       emoji,
       actors,
-      count: actors.length
+      count: actors.length,
     }));
   }, [message.reactions]);
 
@@ -297,14 +330,24 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
             let currentFsHandle = directoryHandle;
             for (const segment of pathSegments) {
-              if (segment === '.' || segment === '' || segment === 'your_facebook_activity' || segment === 'messages') continue;
+              if (
+                segment === '.' ||
+                segment === '' ||
+                segment === 'your_facebook_activity' ||
+                segment === 'messages'
+              )
+                continue;
               if (segment) currentFsHandle = await currentFsHandle.getDirectoryHandle(segment);
             }
             const fileHandle = await currentFsHandle.getFileHandle(fileName);
             const file = await fileHandle.getFile();
             const objectUrl = URL.createObjectURL(file);
             if (active) {
-              newResolvedSlides.push({ src: objectUrl, type: 'image', alt: `Photo ${i + 1} from ${message.sender_name}` });
+              newResolvedSlides.push({
+                src: objectUrl,
+                type: 'image',
+                alt: `Photo ${i + 1} from ${message.sender_name}`,
+              });
             }
           } catch (err) {
             logger.error('LIGHTBOX_PHOTO_LOAD_ERROR', { uri: photo.uri, error: err });
@@ -320,11 +363,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             const pathSegments = video.uri.split('/');
             const fileName = pathSegments.pop();
             if (!fileName) continue;
-            
+
             let currentFsHandle = directoryHandle;
-             for (const segment of pathSegments) {
-                if (segment === '.' || segment === '' || segment === 'your_facebook_activity' || segment === 'messages') continue;
-                if (segment) currentFsHandle = await currentFsHandle.getDirectoryHandle(segment);
+            for (const segment of pathSegments) {
+              if (
+                segment === '.' ||
+                segment === '' ||
+                segment === 'your_facebook_activity' ||
+                segment === 'messages'
+              )
+                continue;
+              if (segment) currentFsHandle = await currentFsHandle.getDirectoryHandle(segment);
             }
             const fileHandle = await currentFsHandle.getFileHandle(fileName);
             const file = await fileHandle.getFile();
@@ -345,17 +394,18 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         setLightboxSlides(newResolvedSlides);
       }
     };
-    
+
     processMedia();
 
-    return () => { // Cleanup function
+    return () => {
+      // Cleanup function
       active = false;
-      newResolvedSlides.forEach(slide => {
+      newResolvedSlides.forEach((slide) => {
         if (slide.src && slide.src.startsWith('blob:')) {
           URL.revokeObjectURL(slide.src);
         }
         if (slide.type === 'video' && slide.sources) {
-          slide.sources.forEach(source => {
+          slide.sources.forEach((source) => {
             if (source.src.startsWith('blob:')) {
               URL.revokeObjectURL(source.src);
             }
@@ -365,88 +415,84 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       logger.debug('LIGHTBOX_SLIDES_CLEANED_UP', { count: newResolvedSlides.length });
     };
   }, [message.photos, message.videos, directoryHandle, message.sender_name]);
-  
+
   useEffect(() => {
     let revokeUrls = () => {};
-    if (lightboxOpen) { // Only resolve all if lightbox is to be opened
-      collectLightboxSlides().then(cleanup => {
+    if (lightboxOpen) {
+      // Only resolve all if lightbox is to be opened
+      collectLightboxSlides().then((cleanup) => {
         if (cleanup) revokeUrls = cleanup;
       });
     }
     return () => revokeUrls(); // Revoke on unmount or when lightboxOpen changes
   }, [lightboxOpen, collectLightboxSlides]);
 
-
   const handleMediaItemClick = (itemGlobalIndex: number) => {
     setCurrentLightboxIndex(itemGlobalIndex);
     setLightboxOpen(true);
   };
-  
-
 
   return (
     <>
-      <HStack 
-        spacing={3} 
+      <HStack
+        spacing={3}
         alignSelf={isMyMessage ? 'flex-end' : 'flex-start'}
         alignItems="flex-start" // Important for avatar and bubble alignment
         mb={4}
         w="full"
-        justifyContent={isMyMessage ? "flex-end" : "flex-start"}
+        justifyContent={isMyMessage ? 'flex-end' : 'flex-start'}
       >
         {!isMyMessage && (
-          <Avatar 
-            name={message.sender_name} 
-            size="sm" 
-            bg={getAvatarColor(message.sender_name)} 
+          <Avatar
+            name={message.sender_name}
+            size="sm"
+            bg={getAvatarColor(message.sender_name)}
             color="white"
             mt={6} // Align with sender name text, approx
           />
         )}
 
-        <VStack 
-          alignItems={isMyMessage ? 'flex-end' : 'flex-start'} 
-          spacing={1} 
-          maxW={{ base: "85%", md: "70%" }}
+        <VStack
+          alignItems={isMyMessage ? 'flex-end' : 'flex-start'}
+          spacing={1}
+          maxW={{ base: '85%', md: '70%' }}
         >
-          <HStack 
-            spacing={2} 
-            fontSize="xs" 
+          <HStack
+            spacing={2}
+            fontSize="xs"
             color={metaTextColor}
             w="full"
             justifyContent={isMyMessage ? 'flex-end' : 'flex-start'}
           >
-            {!isMyMessage && (
-              <Text fontWeight="medium">{highlightText(message.sender_name)}</Text>
-            )}
+            {!isMyMessage && <Text fontWeight="medium">{highlightText(message.sender_name)}</Text>}
             <Text>{formatTime(message.timestamp_ms)}</Text>
           </HStack>
 
-          <Box 
-            bg={bgColor} 
-            px={{ base: 3, md: 4 }} 
-            py={{ base: 2, md: 3 }} 
+          <Box
+            bg={bgColor}
+            px={{ base: 3, md: 4 }}
+            py={{ base: 2, md: 3 }}
             borderRadius="xl" // More rounded
-            borderTopRightRadius={isMyMessage ? "md" : "xl"}
-            borderTopLeftRadius={isMyMessage ? "xl" : "md"}
+            borderTopRightRadius={isMyMessage ? 'md' : 'xl'}
+            borderTopLeftRadius={isMyMessage ? 'xl' : 'md'}
             maxW="full"
             boxShadow="sm"
           >
             {message.content && (
-              <Text 
-                whiteSpace="pre-wrap" 
-                color={textColor}
-                fontSize={{ base: "sm", md: "sm" }}
-              >
+              <Text whiteSpace="pre-wrap" color={textColor} fontSize={{ base: 'sm', md: 'sm' }}>
                 {highlightText(message.content)}
               </Text>
             )}
 
             {/* Photos */}
             {message.photos && message.photos.length > 0 && (
-              <Wrap spacing={2} mt={message.content ? 2 : 0} justify={isMyMessage ? 'flex-end' : 'flex-start'}>
+              <Wrap
+                spacing={2}
+                mt={message.content ? 2 : 0}
+                justify={isMyMessage ? 'flex-end' : 'flex-start'}
+              >
                 {message.photos.map((photo, index) => (
-                  <WrapItem key={photo.uri + "_" + index}>
+                  <WrapItem key={photo.uri + '_' + index}>
                     <MediaItem
                       uri={photo.uri}
                       altText={`Photo ${index + 1}`}
@@ -457,18 +503,18 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 ))}
               </Wrap>
             )}
-            
+
             {/* Videos */}
-             {message.videos && message.videos.length > 0 && (
+            {message.videos && message.videos.length > 0 && (
               <VStack align="stretch" spacing={2} mt={message.content ? 2 : 0}>
                 {message.videos.map((video, index) => (
-                   <MediaItem
-                     key={video.uri + "_" + index}
-                     uri={video.uri}
-                     altText={`Video ${index + 1}`}
-                     itemType="video"
-                     onMediaClick={() => handleMediaItemClick((message.photos?.length || 0) + index)}
-                   />
+                  <MediaItem
+                    key={video.uri + '_' + index}
+                    uri={video.uri}
+                    altText={`Video ${index + 1}`}
+                    itemType="video"
+                    onMediaClick={() => handleMediaItemClick((message.photos?.length || 0) + index)}
+                  />
                 ))}
               </VStack>
             )}
@@ -477,24 +523,33 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             {message.audio_files && message.audio_files.length > 0 && (
               <VStack align="stretch" spacing={2} mt={message.content ? 2 : 0}>
                 {message.audio_files.map((audio, index) => (
-                  <MediaItem key={audio.uri + "_" + index} uri={audio.uri} altText={`Audio ${index+1}`} itemType="audio"/>
+                  <MediaItem
+                    key={audio.uri + '_' + index}
+                    uri={audio.uri}
+                    altText={`Audio ${index + 1}`}
+                    itemType="audio"
+                  />
                 ))}
               </VStack>
             )}
 
             {/* Sticker */}
             {message.sticker && (
-               <Box mt={message.content ? 2 : 0}>
-                <MediaItem uri={message.sticker.uri} altText="Sticker" itemType="sticker"/>
-               </Box>
+              <Box mt={message.content ? 2 : 0}>
+                <MediaItem uri={message.sticker.uri} altText="Sticker" itemType="sticker" />
+              </Box>
             )}
-            
+
             {/* GIFs */}
             {message.gifs && message.gifs.length > 0 && (
-              <Wrap spacing={2} mt={message.content ? 2 : 0} justify={isMyMessage ? 'flex-end' : 'flex-start'}>
+              <Wrap
+                spacing={2}
+                mt={message.content ? 2 : 0}
+                justify={isMyMessage ? 'flex-end' : 'flex-start'}
+              >
                 {message.gifs.map((gif, index) => (
-                  <WrapItem key={gif.uri + "_" + index}>
-                     <MediaItem uri={gif.uri} altText={`GIF ${index+1}`} itemType="gif"/>
+                  <WrapItem key={gif.uri + '_' + index}>
+                    <MediaItem uri={gif.uri} altText={`GIF ${index + 1}`} itemType="gif" />
                   </WrapItem>
                 ))}
               </Wrap>
@@ -504,10 +559,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             {message.files && message.files.length > 0 && (
               <VStack align="stretch" spacing={2} mt={message.content ? 2 : 0}>
                 {message.files.map((file: AttachmentType, index: number) => (
-                  <MediaItem 
-                    key={file.uri + "_" + index} 
-                    uri={file.uri} 
-                    altText={`File ${index+1}`} 
+                  <MediaItem
+                    key={file.uri + '_' + index}
+                    uri={file.uri}
+                    altText={`File ${index + 1}`}
                     itemType="file"
                     fileName={file.uri.split('/').pop()} // Extract filename
                   />
@@ -515,16 +570,20 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               </VStack>
             )}
 
-
             {groupedReactions && groupedReactions.length > 0 && (
-              <HStack mt={2} spacing={1} flexWrap="wrap" justify={isMyMessage ? 'flex-end' : 'flex-start'}>
+              <HStack
+                mt={2}
+                spacing={1}
+                flexWrap="wrap"
+                justify={isMyMessage ? 'flex-end' : 'flex-start'}
+              >
                 {groupedReactions.map((reactionGroup, index) => {
                   const tooltipLabel = reactionGroup.actors
-                    .map(actor => searchQuery ? highlightText(actor) : actor)
+                    .map((actor) => (searchQuery ? highlightText(actor) : actor))
                     .join('\n');
-                  
+
                   return (
-                    <Tooltip 
+                    <Tooltip
                       key={`${reactionGroup.emoji}-${index}`}
                       label={tooltipLabel}
                       placement="top"
@@ -532,20 +591,26 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                       bg={useColorModeValue('gray.700', 'gray.300')}
                       color={useColorModeValue('white', 'gray.800')}
                     >
-                      <Badge 
-                        colorScheme={isMyMessage ? "whiteAlpha" : "gray"} 
-                        variant={isMyMessage ? "solid" : "subtle"}
-                        bg={isMyMessage ? "whiteAlpha.300" : "gray.200"}
-                        color={isMyMessage ? "white" : "gray.700"}
+                      <Badge
+                        colorScheme={isMyMessage ? 'whiteAlpha' : 'gray'}
+                        variant={isMyMessage ? 'solid' : 'subtle'}
+                        bg={isMyMessage ? 'whiteAlpha.300' : 'gray.200'}
+                        color={isMyMessage ? 'white' : 'gray.700'}
                         fontSize="xs"
-                        px={2} py={1} borderRadius="full"
+                        px={2}
+                        py={1}
+                        borderRadius="full"
                         cursor="default"
                         _hover={{
-                          bg: isMyMessage ? "whiteAlpha.400" : "gray.300"
+                          bg: isMyMessage ? 'whiteAlpha.400' : 'gray.300',
                         }}
                       >
-                        <Text as="span" mr={1}>{reactionGroup.emoji}</Text>
-                        <Text as="span" fontWeight="semibold">{reactionGroup.count}</Text>
+                        <Text as="span" mr={1}>
+                          {reactionGroup.emoji}
+                        </Text>
+                        <Text as="span" fontWeight="semibold">
+                          {reactionGroup.count}
+                        </Text>
                       </Badge>
                     </Tooltip>
                   );
@@ -554,17 +619,25 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             )}
 
             {message.is_unsent && (
-              <Text fontStyle="italic" color={isMyMessage ? "whiteAlpha.700" : "gray.500"} fontSize="xs" mt={1}>
+              <Text
+                fontStyle="italic"
+                color={isMyMessage ? 'whiteAlpha.700' : 'gray.500'}
+                fontSize="xs"
+                mt={1}
+              >
                 Message unsent
               </Text>
             )}
 
             {message.call_duration != null && ( // Check for null or undefined
-              <HStack color={isMyMessage ? "whiteAlpha.800" : "gray.600"} mt={message.content ? 2 : 0}>
+              <HStack
+                color={isMyMessage ? 'whiteAlpha.800' : 'gray.600'}
+                mt={message.content ? 2 : 0}
+              >
                 <Icon as={FiPlay} />
                 <Text fontSize="sm">
-                  Call duration: {Math.round(message.call_duration / 60000)} min 
-                  ({(message.call_duration / 1000).toFixed(0)}s)
+                  Call duration: {Math.round(message.call_duration / 60000)} min (
+                  {(message.call_duration / 1000).toFixed(0)}s)
                 </Text>
               </HStack>
             )}
@@ -572,10 +645,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         </VStack>
 
         {isMyMessage && (
-          <Avatar 
-            name={message.sender_name} 
-            size="sm" 
-            bg="blue.600" 
+          <Avatar
+            name={message.sender_name}
+            size="sm"
+            bg="blue.600"
             color="white"
             mt={6} // Align with sender name text
           />

@@ -2,7 +2,7 @@
 export const getAvatarColor = (name: string): string => {
   const colors = [
     'red.500',
-    'orange.500', 
+    'orange.500',
     'yellow.500',
     'green.500',
     'teal.500',
@@ -27,10 +27,10 @@ export const getAvatarColor = (name: string): string => {
   let hash = 0;
   for (let i = 0; i < name.length; i++) {
     const char = name.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
+    hash = (hash << 5) - hash + char;
     hash = hash & hash; // Convert to 32-bit integer
   }
-  
+
   const index = Math.abs(hash) % colors.length;
   return colors[index];
 };

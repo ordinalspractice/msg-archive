@@ -185,11 +185,11 @@ export const ConversationList: React.FC = () => {
   return (
     <Box minH="100vh" bg="gray.50" w="full">
       {/* Header */}
-      <Box 
-        bg="white" 
-        borderBottomWidth="1px" 
+      <Box
+        bg="white"
+        borderBottomWidth="1px"
         borderColor={borderColor}
-        px={{ base: 2, md: 4 }} 
+        px={{ base: 2, md: 4 }}
         py={4}
         position="sticky"
         top={0}
@@ -201,7 +201,9 @@ export const ConversationList: React.FC = () => {
             <HStack w="full" justify="space-between">
               <HStack>
                 <Icon as={FiMessageCircle} boxSize={6} color="blue.500" />
-                <Heading size="md" color="gray.800">Messenger Archive</Heading>
+                <Heading size="md" color="gray.800">
+                  Messenger Archive
+                </Heading>
               </HStack>
             </HStack>
             <InputGroup maxW="md">
@@ -214,7 +216,7 @@ export const ConversationList: React.FC = () => {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 bg="gray.50"
                 border="none"
-                _focus={{ bg: "white", boxShadow: "outline" }}
+                _focus={{ bg: 'white', boxShadow: 'outline' }}
                 borderRadius="full"
               />
             </InputGroup>
@@ -225,17 +227,10 @@ export const ConversationList: React.FC = () => {
       {/* Content */}
       <Box maxW="1200px" mx="auto" px={{ base: 2, md: 4 }} py={6} w="full">
         <VStack spacing={0} align="stretch">
-
           {loading ? (
             <VStack spacing={0} align="stretch">
               {[...Array(8)].map((_, i) => (
-                <Box
-                  key={i}
-                  p={4}
-                  bg="white"
-                  borderBottomWidth="1px"
-                  borderColor={borderColor}
-                >
+                <Box key={i} p={4} bg="white" borderBottomWidth="1px" borderColor={borderColor}>
                   <HStack spacing={3}>
                     <Skeleton height="48px" width="48px" borderRadius="full" />
                     <Box flex={1}>
@@ -248,13 +243,7 @@ export const ConversationList: React.FC = () => {
               ))}
             </VStack>
           ) : filteredThreads.length === 0 ? (
-            <Box
-              p={12}
-              bg="white"
-              textAlign="center"
-              borderRadius="lg"
-              mx={4}
-            >
+            <Box p={12} bg="white" textAlign="center" borderRadius="lg" mx={4}>
               <Icon as={FiFolder} boxSize={16} color="gray.300" mb={4} />
               <Text color="gray.500" fontSize="lg">
                 {searchQuery ? 'No conversations match your search' : 'No conversations found'}
@@ -271,8 +260,8 @@ export const ConversationList: React.FC = () => {
                     p={4}
                     cursor="pointer"
                     transition="all 0.15s ease"
-                    _hover={{ bg: "blue.50" }}
-                    borderBottomWidth={index < filteredThreads.length - 1 ? "1px" : "0"}
+                    _hover={{ bg: 'blue.50' }}
+                    borderBottomWidth={index < filteredThreads.length - 1 ? '1px' : '0'}
                     borderColor={borderColor}
                     onClick={() => handleThreadClick(thread.id)}
                   >
@@ -280,17 +269,17 @@ export const ConversationList: React.FC = () => {
                       <AvatarGroup size="md" max={2}>
                         {thread.participants.length > 0 ? (
                           thread.participants.map((p, i) => (
-                            <Avatar 
-                              key={i} 
-                              name={p.name} 
+                            <Avatar
+                              key={i}
+                              name={p.name}
                               size="md"
                               bg={getAvatarColor(p.name)}
                               color="white"
                             />
                           ))
                         ) : (
-                          <Avatar 
-                            name={thread.title || "Unknown"} 
+                          <Avatar
+                            name={thread.title || 'Unknown'}
                             size="md"
                             bg="gray.500"
                             color="white"
@@ -300,8 +289,8 @@ export const ConversationList: React.FC = () => {
 
                       <Box flex={1} minW={0}>
                         <HStack justify="space-between" mb={1}>
-                          <Text 
-                            fontWeight="600" 
+                          <Text
+                            fontWeight="600"
                             fontSize="md"
                             color="gray.900"
                             isTruncated
@@ -319,7 +308,9 @@ export const ConversationList: React.FC = () => {
                         <HStack spacing={2} color="gray.500" fontSize="sm">
                           {hasData ? (
                             <Text isTruncated>
-                              {thread.participants.length} participant{thread.participants.length !== 1 ? 's' : ''} • {thread.totalMessages} messages
+                              {thread.participants.length} participant
+                              {thread.participants.length !== 1 ? 's' : ''} • {thread.totalMessages}{' '}
+                              messages
                             </Text>
                           ) : (
                             <Text>Click to load messages</Text>

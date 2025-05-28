@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  type ReactNode,
+} from 'react';
 import type { ParsedThread, ThreadMetadata } from '../types/messenger';
 import { detectUserName } from '../utils/userDetection';
 import { logger } from '../utils/logger';
@@ -130,12 +137,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   // Simple auto-detection when directory is selected
   useEffect(() => {
     let mounted = true;
-    
+
     const autoDetectUser = async () => {
       if (directoryHandle && !currentUserName && !isDetectingUser) {
         setIsDetectingUser(true);
         logger.debug('DETECTING_USER_FROM_AUTOFILL');
-        
+
         try {
           const detectedName = await detectUserName(directoryHandle);
           if (mounted && detectedName) {
@@ -157,7 +164,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     };
 
     autoDetectUser();
-    
+
     return () => {
       mounted = false;
     };
