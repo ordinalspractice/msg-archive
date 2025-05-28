@@ -20,6 +20,7 @@ import {
 import { FiPlay, FiMusic, FiDownload } from 'react-icons/fi';
 import ReactPlayer from 'react-player';
 import Lightbox from 'yet-another-react-lightbox';
+import Video from 'yet-another-react-lightbox/plugins/video';
 import 'yet-another-react-lightbox/styles.css';
 import type { Message, Attachment as AttachmentType } from '../types/messenger';
 import { useAppContext } from '../context/AppContext';
@@ -32,16 +33,23 @@ interface MessageBubbleProps {
   searchQuery?: string;
 }
 
+interface LightboxSlide {
+  src?: string;
+  alt?: string;
+  type?: 'image' | 'video';
+  sources?: { src: string; type: string }[]; // For video plugin
+}
+
 // Helper component to manage individual media item loading and display
 interface MediaItemProps {
   uri: string;
   altText: string;
   itemType: 'photo' | 'video' | 'audio' | 'gif' | 'sticker' | 'file';
-  onImageClick?: () => void; // For photos/gifs to open lightbox
+  onMediaClick?: () => void; // Renamed from onImageClick, for photos, videos, gifs
   fileName?: string; // For file attachments
 }
 
-const MediaItem: React.FC<MediaItemProps> = ({ uri, altText, itemType, onImageClick, fileName }) => {
+const MediaItem: React.FC<MediaItemProps> = ({ uri, altText, itemType, onMediaClick, fileName }) => {
   const { directoryHandle } = useAppContext();
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -149,17 +157,24 @@ const MediaItem: React.FC<MediaItemProps> = ({ uri, altText, itemType, onImageCl
           alt={altText}
           maxH={itemType === 'sticker' ? "100px" : "200px"} // Stickers usually smaller
           borderRadius="md"
-          cursor={onImageClick ? "pointer" : "default"}
-          onClick={onImageClick}
+          cursor={onMediaClick ? "pointer" : "default"}
+          onClick={onMediaClick}
           loading="lazy"
           objectFit="contain"
         />
       );
     case 'video':
       return (
-        <AspectRatio ratio={16 / 9} maxW="320px" w="full">
-          <ReactPlayer url={objectUrl} controls width="100%" height="100%" />
-        </AspectRatio>
+        <Box
+          onClick={onMediaClick}
+          cursor={onMediaClick ? 'pointer' : 'default'}
+          maxW={{ base: '100%', sm: '320px', md: '480px' }} // Increased and responsive max width
+          w="full"
+        >
+          <AspectRatio ratio={16 / 9} w="full">
+            <ReactPlayer url={objectUrl} controls width="100%" height="100%" />
+          </AspectRatio>
+        </Box>
       );
     case 'audio':
       return (
@@ -192,7 +207,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   searchQuery = '',
 }) => {
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [lightboxSlides, setLightboxSlides] = useState<{ src: string; alt: string }[]>([]);
+  const [lightboxSlides, setLightboxSlides] = useState<LightboxSlide[]>([]);
   const [currentLightboxIndex, setCurrentLightboxIndex] = useState(0);
   
   const { currentUserName, directoryHandle } = useAppContext(); // Get directoryHandle for MediaItem
@@ -262,40 +277,94 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   }, [message.reactions]);
 
   const collectLightboxSlides = useCallback(async () => {
-    if (!message.photos || message.photos.length === 0 || !directoryHandle) {
+    if (!directoryHandle) {
       setLightboxSlides([]);
-      return;
+      return () => {}; // Return an empty cleanup function
     }
-  
-    const resolvedSlides: { src: string; alt: string }[] = [];
-    for (let i = 0; i < message.photos.length; i++) {
-      const photo = message.photos[i];
-      try {
-        const pathSegments = photo.uri.split('/');
-        const fileName = pathSegments.pop();
-        if (!fileName) continue;
-  
-        let currentFsHandle = directoryHandle;
-        for (const segment of pathSegments) {
-            if (segment === '.' || segment === '' || segment === 'your_facebook_activity' || segment === 'messages') continue;
-            if (segment) currentFsHandle = await currentFsHandle.getDirectoryHandle(segment);
+
+    const newResolvedSlides: LightboxSlide[] = [];
+    let active = true; // To prevent state updates on unmounted component
+
+    const processMedia = async () => {
+      // Process photos
+      if (message.photos) {
+        for (let i = 0; i < message.photos.length; i++) {
+          const photo = message.photos[i];
+          try {
+            const pathSegments = photo.uri.split('/');
+            const fileName = pathSegments.pop();
+            if (!fileName) continue;
+
+            let currentFsHandle = directoryHandle;
+            for (const segment of pathSegments) {
+              if (segment === '.' || segment === '' || segment === 'your_facebook_activity' || segment === 'messages') continue;
+              if (segment) currentFsHandle = await currentFsHandle.getDirectoryHandle(segment);
+            }
+            const fileHandle = await currentFsHandle.getFileHandle(fileName);
+            const file = await fileHandle.getFile();
+            const objectUrl = URL.createObjectURL(file);
+            if (active) {
+              newResolvedSlides.push({ src: objectUrl, type: 'image', alt: `Photo ${i + 1} from ${message.sender_name}` });
+            }
+          } catch (err) {
+            logger.error('LIGHTBOX_PHOTO_LOAD_ERROR', { uri: photo.uri, error: err });
+          }
         }
-        const fileHandle = await currentFsHandle.getFileHandle(fileName);
-        const file = await fileHandle.getFile();
-        const objectUrl = URL.createObjectURL(file);
-        resolvedSlides.push({ src: objectUrl, alt: `Photo ${i + 1}` });
-      } catch (err) {
-        logger.error('LIGHTBOX_SLIDE_LOAD_ERROR', { uri: photo.uri, error: err });
-        // Optionally add a placeholder for failed images or skip
       }
-    }
-    setLightboxSlides(resolvedSlides);
-  
-    // Cleanup function to revoke object URLs when component unmounts or slides change
-    return () => {
-      resolvedSlides.forEach(slide => URL.revokeObjectURL(slide.src));
+
+      // Process videos
+      if (message.videos) {
+        for (let i = 0; i < message.videos.length; i++) {
+          const video = message.videos[i];
+          try {
+            const pathSegments = video.uri.split('/');
+            const fileName = pathSegments.pop();
+            if (!fileName) continue;
+            
+            let currentFsHandle = directoryHandle;
+             for (const segment of pathSegments) {
+                if (segment === '.' || segment === '' || segment === 'your_facebook_activity' || segment === 'messages') continue;
+                if (segment) currentFsHandle = await currentFsHandle.getDirectoryHandle(segment);
+            }
+            const fileHandle = await currentFsHandle.getFileHandle(fileName);
+            const file = await fileHandle.getFile();
+            const objectUrl = URL.createObjectURL(file);
+            if (active) {
+              newResolvedSlides.push({
+                type: 'video',
+                alt: `Video ${i + 1} from ${message.sender_name}`,
+                sources: [{ src: objectUrl, type: file.type || 'video/mp4' }], // Use file.type, fallback to video/mp4
+              });
+            }
+          } catch (err) {
+            logger.error('LIGHTBOX_VIDEO_LOAD_ERROR', { uri: video.uri, error: err });
+          }
+        }
+      }
+      if (active) {
+        setLightboxSlides(newResolvedSlides);
+      }
     };
-  }, [message.photos, directoryHandle]);
+    
+    processMedia();
+
+    return () => { // Cleanup function
+      active = false;
+      newResolvedSlides.forEach(slide => {
+        if (slide.src && slide.src.startsWith('blob:')) {
+          URL.revokeObjectURL(slide.src);
+        }
+        if (slide.type === 'video' && slide.sources) {
+          slide.sources.forEach(source => {
+            if (source.src.startsWith('blob:')) {
+              URL.revokeObjectURL(source.src);
+            }
+          });
+        }
+      });
+      logger.debug('LIGHTBOX_SLIDES_CLEANED_UP', { count: newResolvedSlides.length });
+    };
+  }, [message.photos, message.videos, directoryHandle, message.sender_name]);
   
   useEffect(() => {
     let revokeUrls = () => {};
@@ -308,20 +377,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   }, [lightboxOpen, collectLightboxSlides]);
 
 
-  const handleImageClick = (photoIndex: number) => {
-    // Find the correct index in the potentially filtered/failed lightboxSlides
-    // This logic assumes message.photos[photoIndex].uri was successfully resolved
-    // and its objectUrl is present in lightboxSlides.
-    // A more robust way would be to map original indices to lightboxSlides indices if some fail.
-    // For now, let's assume all URIs are unique enough.
-    if (message.photos && message.photos[photoIndex]) {
-      // This is tricky because lightboxSlides contains objectURLs, not original URIs.
-      // We set based on original photo array index. Lightbox must then use this index.
-      // So, lightboxSlides must be in the same order as message.photos.
-      // If collectLightboxSlides populates placeholders for errors, the index will match.
-      setCurrentLightboxIndex(photoIndex); 
-      setLightboxOpen(true);
-    }
+  const handleMediaItemClick = (itemGlobalIndex: number) => {
+    setCurrentLightboxIndex(itemGlobalIndex);
+    setLightboxOpen(true);
   };
   
 
@@ -393,7 +451,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                       uri={photo.uri}
                       altText={`Photo ${index + 1}`}
                       itemType="photo"
-                      onImageClick={() => handleImageClick(index)}
+                      onMediaClick={() => handleMediaItemClick(index)}
                     />
                   </WrapItem>
                 ))}
@@ -404,7 +462,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
              {message.videos && message.videos.length > 0 && (
               <VStack align="stretch" spacing={2} mt={message.content ? 2 : 0}>
                 {message.videos.map((video, index) => (
-                   <MediaItem key={video.uri + "_" + index} uri={video.uri} altText={`Video ${index+1}`} itemType="video"/>
+                   <MediaItem
+                     key={video.uri + "_" + index}
+                     uri={video.uri}
+                     altText={`Video ${index + 1}`}
+                     itemType="video"
+                     onMediaClick={() => handleMediaItemClick((message.photos?.length || 0) + index)}
+                   />
                 ))}
               </VStack>
             )}
@@ -518,12 +582,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         )}
       </HStack>
 
-      {lightboxOpen && message.photos && (
+      {lightboxOpen && (message.photos || message.videos) && (
         <Lightbox
           open={lightboxOpen}
           close={() => setLightboxOpen(false)}
-          slides={lightboxSlides} // Use the state variable with resolved object URLs
+          slides={lightboxSlides}
           index={currentLightboxIndex}
+          plugins={[Video]} // Add the Video plugin
         />
       )}
     </>
