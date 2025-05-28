@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Text,
@@ -12,12 +12,15 @@ import {
   Wrap,
   WrapItem,
   Avatar,
+  Link,
+  Button,
+  Skeleton,
 } from '@chakra-ui/react';
-import { FiPlay, FiMusic } from 'react-icons/fi';
+import { FiPlay, FiMusic, FiDownload } from 'react-icons/fi';
 import ReactPlayer from 'react-player';
 import Lightbox from 'yet-another-react-lightbox';
 import 'yet-another-react-lightbox/styles.css';
-import type { Message } from '../types/messenger';
+import type { Message, Attachment as AttachmentType } from '../types/messenger';
 import { useAppContext } from '../context/AppContext';
 import { getAvatarColor } from '../utils/avatarColors';
 import { logger } from '../utils/logger';
@@ -28,44 +31,201 @@ interface MessageBubbleProps {
   searchQuery?: string;
 }
 
+// Helper component to manage individual media item loading and display
+interface MediaItemProps {
+  uri: string;
+  altText: string;
+  itemType: 'photo' | 'video' | 'audio' | 'gif' | 'sticker' | 'file';
+  onImageClick?: () => void; // For photos/gifs to open lightbox
+  fileName?: string; // For file attachments
+}
+
+const MediaItem: React.FC<MediaItemProps> = ({ uri, altText, itemType, onImageClick, fileName }) => {
+  const { directoryHandle } = useAppContext();
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isActive = true;
+    let currentObjectUrl: string | null = null;
+
+    const loadMedia = async () => {
+      if (!directoryHandle || !uri) {
+        if (isActive) {
+          // Check if it's an external URL (e.g. from a share)
+          if (uri && (uri.startsWith('http://') || uri.startsWith('https://'))) {
+            setObjectUrl(uri); // Use direct URL
+            setIsLoading(false);
+            return;
+          }
+          setError('Missing directory handle or URI');
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const pathSegments = uri.split('/');
+        const fileName = pathSegments.pop();
+        if (!fileName) {
+          throw new Error('Invalid media URI (no filename)');
+        }
+
+        let currentFsHandle = directoryHandle;
+        for (const segment of pathSegments) {
+          if (segment === '.' || segment === '' || segment === 'your_facebook_activity' || segment === 'messages') {
+             // Skip '.', '', and ignore potential "your_facebook_activity/messages/" prefix if it somehow remains
+            if (segment === 'messages' && uri.startsWith('messages/')) {
+                // This case should ideally not happen if worker normalized correctly,
+                // but as a safeguard, if URI starts with "messages/", we assume directoryHandle is already "messages"
+                // and we should not try to get "messages" dir handle again from itself.
+                continue;
+            } else if (segment === 'your_facebook_activity') {
+                continue; // This segment should have been stripped by worker.
+            } else if (segment) { // Ensure segment is not empty before trying to get handle
+                 currentFsHandle = await currentFsHandle.getDirectoryHandle(segment);
+            }
+          } else {
+             currentFsHandle = await currentFsHandle.getDirectoryHandle(segment);
+          }
+        }
+        
+        const fileHandle = await currentFsHandle.getFileHandle(fileName);
+        const file = await fileHandle.getFile();
+        
+        currentObjectUrl = URL.createObjectURL(file);
+        if (isActive) {
+          setObjectUrl(currentObjectUrl);
+        }
+      } catch (err: any) {
+        logger.error('MEDIA_LOAD_ERROR', { uri, type:itemType, error: err.message, stack: err.stack });
+        if (isActive) {
+          setError(`Failed: ${fileName || uri}`);
+        }
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadMedia();
+
+    return () => {
+      isActive = false;
+      if (currentObjectUrl && !currentObjectUrl.startsWith('http')) { // Don't revoke external URLs
+        URL.revokeObjectURL(currentObjectUrl);
+        logger.debug('MEDIA_URL_REVOKED', { url: currentObjectUrl });
+      }
+    };
+  }, [directoryHandle, uri, itemType]);
+
+  if (isLoading) {
+    return <Skeleton height="100px" width="100px" borderRadius="md" />;
+  }
+
+  if (error) {
+    return (
+      <Box p={1} borderWidth="1px" borderRadius="md" borderColor="red.300" bg="red.50" maxW="150px">
+        <Text fontSize="xs" color="red.500" isTruncated title={error}>{error}</Text>
+      </Box>
+    );
+  }
+
+  if (!objectUrl) return null;
+
+  switch (itemType) {
+    case 'photo':
+    case 'gif':
+    case 'sticker':
+      return (
+        <Image
+          src={objectUrl}
+          alt={altText}
+          maxH={itemType === 'sticker' ? "100px" : "200px"} // Stickers usually smaller
+          borderRadius="md"
+          cursor={onImageClick ? "pointer" : "default"}
+          onClick={onImageClick}
+          loading="lazy"
+          objectFit="contain"
+        />
+      );
+    case 'video':
+      return (
+        <AspectRatio ratio={16 / 9} maxW="320px" w="full">
+          <ReactPlayer url={objectUrl} controls width="100%" height="100%" />
+        </AspectRatio>
+      );
+    case 'audio':
+      return (
+         <HStack>
+          <Icon as={FiMusic} />
+          <ReactPlayer
+            url={objectUrl}
+            controls
+            width="250px"
+            height="40px"
+            config={{ file: { forceAudio: true } }}
+          />
+        </HStack>
+      );
+    case 'file':
+      return (
+        <Button as={Link} href={objectUrl} download={fileName || 'download'} leftIcon={<FiDownload />} size="sm" variant="outline">
+          {fileName || 'Download File'}
+        </Button>
+      )
+    default:
+      return null;
+  }
+};
+
+
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   isHighlighted = false,
   searchQuery = '',
 }) => {
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [lightboxIndex, setLightboxIndex] = useState(0);
-  const { currentUserName } = useAppContext();
+  const [lightboxSlides, setLightboxSlides] = useState<{ src: string; alt: string }[]>([]);
+  const [currentLightboxIndex, setCurrentLightboxIndex] = useState(0);
+  
+  const { currentUserName, directoryHandle } = useAppContext(); // Get directoryHandle for MediaItem
 
-  // Determine if this message is from the current user
   const isMyMessage = currentUserName && message.sender_name === currentUserName;
-
-  // Message bubble colors
+  
   const myMessageBg = useColorModeValue(
-    isHighlighted ? 'yellow.100' : 'blue.500',
-    isHighlighted ? 'yellow.900' : 'blue.600',
+    isHighlighted ? 'yellow.200' : 'blue.500', // Slightly different highlight for own messages
+    isHighlighted ? 'yellow.700' : 'blue.600',
   );
   
   const otherMessageBg = useColorModeValue(
     isHighlighted ? 'yellow.100' : 'gray.100',
-    isHighlighted ? 'yellow.900' : 'gray.700',
+    isHighlighted ? 'yellow.800' : 'gray.700', // Darker highlight for others in dark mode
   );
 
   const bgColor = isMyMessage ? myMessageBg : otherMessageBg;
-  const textColor = isMyMessage ? 'white' : 'black';
+  const textColor = isMyMessage ? 'white' : useColorModeValue('gray.800', 'whiteAlpha.900');
+  const metaTextColor = isMyMessage ? 'blue.100' : useColorModeValue('gray.500', 'gray.400');
+
 
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp);
     return date.toLocaleString();
   };
 
-  const highlightText = (text: string) => {
-    if (!searchQuery || !text) return text;
+  const highlightText = (text: string | undefined) => {
+    if (!text) return '';
+    if (!searchQuery) return text;
 
-    const parts = text.split(new RegExp(`(${searchQuery})`, 'gi'));
+    const parts = text.split(new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
     return parts.map((part, i) =>
       part.toLowerCase() === searchQuery.toLowerCase() ? (
-        <Text as="mark" key={i} bg="yellow.300" px={1}>
+        <Text as="mark" key={i} bg={isMyMessage ? "yellow.400" : "yellow.200"} color={isMyMessage ? "black" : "black"} px="1px">
           {part}
         </Text>
       ) : (
@@ -74,48 +234,102 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     );
   };
 
-  const handleImageClick = (index: number) => {
-    setLightboxIndex(index);
-    setLightboxOpen(true);
-  };
+  const collectLightboxSlides = useCallback(async () => {
+    if (!message.photos || message.photos.length === 0 || !directoryHandle) {
+      setLightboxSlides([]);
+      return;
+    }
+  
+    const resolvedSlides: { src: string; alt: string }[] = [];
+    for (let i = 0; i < message.photos.length; i++) {
+      const photo = message.photos[i];
+      try {
+        const pathSegments = photo.uri.split('/');
+        const fileName = pathSegments.pop();
+        if (!fileName) continue;
+  
+        let currentFsHandle = directoryHandle;
+        for (const segment of pathSegments) {
+            if (segment === '.' || segment === '' || segment === 'your_facebook_activity' || segment === 'messages') continue;
+            if (segment) currentFsHandle = await currentFsHandle.getDirectoryHandle(segment);
+        }
+        const fileHandle = await currentFsHandle.getFileHandle(fileName);
+        const file = await fileHandle.getFile();
+        const objectUrl = URL.createObjectURL(file);
+        resolvedSlides.push({ src: objectUrl, alt: `Photo ${i + 1}` });
+      } catch (err) {
+        logger.error('LIGHTBOX_SLIDE_LOAD_ERROR', { uri: photo.uri, error: err });
+        // Optionally add a placeholder for failed images or skip
+      }
+    }
+    setLightboxSlides(resolvedSlides);
+  
+    // Cleanup function to revoke object URLs when component unmounts or slides change
+    return () => {
+      resolvedSlides.forEach(slide => URL.revokeObjectURL(slide.src));
+    };
+  }, [message.photos, directoryHandle]);
+  
+  useEffect(() => {
+    let revokeUrls = () => {};
+    if (lightboxOpen) { // Only resolve all if lightbox is to be opened
+      collectLightboxSlides().then(cleanup => {
+        if (cleanup) revokeUrls = cleanup;
+      });
+    }
+    return () => revokeUrls(); // Revoke on unmount or when lightboxOpen changes
+  }, [lightboxOpen, collectLightboxSlides]);
 
-  const lightboxSlides =
-    message.photos?.map((photo) => ({
-      src: photo.uri,
-      alt: 'Message photo',
-    })) || [];
+
+  const handleImageClick = (photoIndex: number) => {
+    // Find the correct index in the potentially filtered/failed lightboxSlides
+    // This logic assumes message.photos[photoIndex].uri was successfully resolved
+    // and its objectUrl is present in lightboxSlides.
+    // A more robust way would be to map original indices to lightboxSlides indices if some fail.
+    // For now, let's assume all URIs are unique enough.
+    if (message.photos && message.photos[photoIndex]) {
+      // This is tricky because lightboxSlides contains objectURLs, not original URIs.
+      // We set based on original photo array index. Lightbox must then use this index.
+      // So, lightboxSlides must be in the same order as message.photos.
+      // If collectLightboxSlides populates placeholders for errors, the index will match.
+      setCurrentLightboxIndex(photoIndex); 
+      setLightboxOpen(true);
+    }
+  };
+  
+
 
   return (
     <>
       <HStack 
         spacing={3} 
-        justify={isMyMessage ? 'flex-end' : 'flex-start'}
-        align="flex-start"
+        alignSelf={isMyMessage ? 'flex-end' : 'flex-start'}
+        alignItems="flex-start" // Important for avatar and bubble alignment
         mb={4}
+        w="full"
+        justifyContent={isMyMessage ? "flex-end" : "flex-start"}
       >
-        {/* Avatar for others (left side) */}
         {!isMyMessage && (
           <Avatar 
             name={message.sender_name} 
             size="sm" 
             bg={getAvatarColor(message.sender_name)} 
             color="white"
+            mt={6} // Align with sender name text, approx
           />
         )}
 
-        {/* Message content */}
         <VStack 
-          align={isMyMessage ? 'flex-end' : 'flex-start'} 
+          alignItems={isMyMessage ? 'flex-end' : 'flex-start'} 
           spacing={1} 
           maxW={{ base: "85%", md: "70%" }}
         >
-          {/* Sender name and timestamp */}
           <HStack 
             spacing={2} 
             fontSize="xs" 
-            color="gray.500"
-            justify={isMyMessage ? 'flex-end' : 'flex-start'}
+            color={metaTextColor}
             w="full"
+            justifyContent={isMyMessage ? 'flex-end' : 'flex-start'}
           >
             {!isMyMessage && (
               <Text fontWeight="medium">{highlightText(message.sender_name)}</Text>
@@ -123,14 +337,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             <Text>{formatTime(message.timestamp_ms)}</Text>
           </HStack>
 
-          {/* Message bubble */}
           <Box 
             bg={bgColor} 
             px={{ base: 3, md: 4 }} 
             py={{ base: 2, md: 3 }} 
-            borderRadius="2xl"
-            borderTopRightRadius={isMyMessage ? "md" : "2xl"}
-            borderTopLeftRadius={isMyMessage ? "2xl" : "md"}
+            borderRadius="xl" // More rounded
+            borderTopRightRadius={isMyMessage ? "md" : "xl"}
+            borderTopLeftRadius={isMyMessage ? "xl" : "md"}
             maxW="full"
             boxShadow="sm"
           >
@@ -144,114 +357,127 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               </Text>
             )}
 
+            {/* Photos */}
             {message.photos && message.photos.length > 0 && (
-              <Wrap spacing={2} mt={message.content ? 2 : 0}>
+              <Wrap spacing={2} mt={message.content ? 2 : 0} justify={isMyMessage ? 'flex-end' : 'flex-start'}>
                 {message.photos.map((photo, index) => (
-                  <WrapItem key={index}>
-                    <Image
-                      src={photo.uri}
-                      alt="Photo"
-                      maxH="200px"
-                      borderRadius="md"
-                      cursor="pointer"
-                      onClick={() => handleImageClick(index)}
-                      loading="lazy"
+                  <WrapItem key={photo.uri + "_" + index}>
+                    <MediaItem
+                      uri={photo.uri}
+                      altText={`Photo ${index + 1}`}
+                      itemType="photo"
+                      onImageClick={() => handleImageClick(index)}
                     />
                   </WrapItem>
                 ))}
               </Wrap>
             )}
-
-            {message.videos && message.videos.length > 0 && (
+            
+            {/* Videos */}
+             {message.videos && message.videos.length > 0 && (
               <VStack align="stretch" spacing={2} mt={message.content ? 2 : 0}>
                 {message.videos.map((video, index) => (
-                  <AspectRatio key={index} ratio={16 / 9} maxW="400px">
-                    <ReactPlayer url={video.uri} controls width="100%" height="100%" />
-                  </AspectRatio>
+                   <MediaItem key={video.uri + "_" + index} uri={video.uri} altText={`Video ${index+1}`} itemType="video"/>
                 ))}
               </VStack>
             )}
 
+            {/* Audio Files */}
             {message.audio_files && message.audio_files.length > 0 && (
               <VStack align="stretch" spacing={2} mt={message.content ? 2 : 0}>
                 {message.audio_files.map((audio, index) => (
-                  <HStack key={index} bg={isMyMessage ? "whiteAlpha.200" : "gray.200"} p={2} borderRadius="md">
-                    <Icon as={FiMusic} color={isMyMessage ? "white" : "gray.600"} />
-                    <ReactPlayer
-                      url={audio.uri}
-                      controls
-                      width="200px"
-                      height="40px"
-                      config={{
-                        file: {
-                          forceAudio: true,
-                        },
-                      }}
-                    />
-                  </HStack>
+                  <MediaItem key={audio.uri + "_" + index} uri={audio.uri} altText={`Audio ${index+1}`} itemType="audio"/>
                 ))}
               </VStack>
             )}
 
-            {message.sticker && <Image src={message.sticker.uri} alt="Sticker" maxH="150px" mt={message.content ? 2 : 0} />}
-
+            {/* Sticker */}
+            {message.sticker && (
+               <Box mt={message.content ? 2 : 0}>
+                <MediaItem uri={message.sticker.uri} altText="Sticker" itemType="sticker"/>
+               </Box>
+            )}
+            
+            {/* GIFs */}
             {message.gifs && message.gifs.length > 0 && (
-              <Wrap spacing={2} mt={message.content ? 2 : 0}>
+              <Wrap spacing={2} mt={message.content ? 2 : 0} justify={isMyMessage ? 'flex-end' : 'flex-start'}>
                 {message.gifs.map((gif, index) => (
-                  <WrapItem key={index}>
-                    <Image src={gif.uri} alt="GIF" maxH="200px" borderRadius="md" />
+                  <WrapItem key={gif.uri + "_" + index}>
+                     <MediaItem uri={gif.uri} altText={`GIF ${index+1}`} itemType="gif"/>
                   </WrapItem>
                 ))}
               </Wrap>
             )}
 
+            {/* File Attachments */}
+            {message.files && message.files.length > 0 && (
+              <VStack align="stretch" spacing={2} mt={message.content ? 2 : 0}>
+                {message.files.map((file: AttachmentType, index: number) => (
+                  <MediaItem 
+                    key={file.uri + "_" + index} 
+                    uri={file.uri} 
+                    altText={`File ${index+1}`} 
+                    itemType="file"
+                    fileName={file.uri.split('/').pop()} // Extract filename
+                  />
+                ))}
+              </VStack>
+            )}
+
+
             {message.reactions && message.reactions.length > 0 && (
-              <HStack mt={2} spacing={1} flexWrap="wrap">
+              <HStack mt={2} spacing={1} flexWrap="wrap" justify={isMyMessage ? 'flex-end' : 'flex-start'}>
                 {message.reactions.map((reaction, index) => (
                   <Badge 
                     key={index} 
-                    colorScheme={isMyMessage ? "whiteAlpha" : "blue"} 
-                    variant="subtle"
+                    colorScheme={isMyMessage ? "whiteAlpha" : "gray"} 
+                    variant={isMyMessage ? "solid" : "subtle"}
+                    bg={isMyMessage ? "whiteAlpha.300" : "gray.200"}
+                    color={isMyMessage ? "white" : "gray.700"}
                     fontSize="xs"
+                    px={2} py={0.5} borderRadius="full"
                   >
-                    {reaction.reaction} {reaction.actor}
+                    {reaction.reaction} {highlightText(reaction.actor)}
                   </Badge>
                 ))}
               </HStack>
             )}
 
             {message.is_unsent && (
-              <Text fontStyle="italic" color={isMyMessage ? "whiteAlpha.700" : "gray.500"} fontSize="sm">
+              <Text fontStyle="italic" color={isMyMessage ? "whiteAlpha.700" : "gray.500"} fontSize="xs" mt={1}>
                 Message unsent
               </Text>
             )}
 
-            {message.call_duration && (
+            {message.call_duration != null && ( // Check for null or undefined
               <HStack color={isMyMessage ? "whiteAlpha.800" : "gray.600"} mt={message.content ? 2 : 0}>
                 <Icon as={FiPlay} />
-                <Text fontSize="sm">Call - {Math.round(message.call_duration / 60)} minutes</Text>
+                <Text fontSize="sm">
+                  Call duration: {Math.round(message.call_duration / 60000)} min 
+                  ({(message.call_duration / 1000).toFixed(0)}s)
+                </Text>
               </HStack>
             )}
           </Box>
         </VStack>
 
-        {/* Avatar for current user (right side) */}
         {isMyMessage && (
           <Avatar 
             name={message.sender_name} 
             size="sm" 
             bg="blue.600" 
             color="white"
+            mt={6} // Align with sender name text
           />
         )}
       </HStack>
 
-      {lightboxOpen && (
+      {lightboxOpen && message.photos && (
         <Lightbox
           open={lightboxOpen}
           close={() => setLightboxOpen(false)}
-          slides={lightboxSlides}
-          index={lightboxIndex}
+          slides={lightboxSlides} // Use the state variable with resolved object URLs
+          index={currentLightboxIndex}
         />
       )}
     </>
