@@ -7,8 +7,15 @@ A privacy-focused, client-side web application for browsing and searching your F
 - 📁 **Local Processing**: Your data never leaves your browser
 - 🔍 **Fuzzy Search**: Search through messages with keyword matching
 - 📊 **Timeline Visualization**: See message activity over time with an interactive heatmap
-- 🖼️ **Media Support**: View photos, videos, GIFs, and play audio files inline
+- 🖼️ **Advanced Media Support**: 
+  - Photos with lightbox gallery and click-to-expand
+  - Videos with responsive inline player and fullscreen lightbox
+  - Audio files with full playback controls
+  - GIFs, stickers, and file attachments with download
+- 😊 **Reaction Display**: Grouped emoji reactions with hover tooltips showing all reactors
+- 🌍 **International Support**: Automatic correction of Facebook's character encoding issues (mojibake)
 - ⚡ **Fast Performance**: Virtualized lists and streaming JSON parsing for large archives
+- 🎨 **Responsive Design**: Works seamlessly on desktop, tablet, and mobile devices
 - 🔐 **Future AI Search**: Optional OpenRouter integration for semantic search (coming soon)
 
 ## Getting Started
@@ -71,10 +78,13 @@ The built files will be in the `dist` directory.
 - **React** + **TypeScript** - UI framework and type safety
 - **Vite** - Build tool and dev server
 - **Chakra UI** - Component library
-- **React Virtuoso** - List virtualization
-- **Fuse.js** - Fuzzy search
-- **Web Workers** - Background JSON parsing
-- **File System Access API** - Local file access
+- **React Virtuoso** - List virtualization for performance
+- **Fuse.js** - Fuzzy search functionality
+- **React Player** - Media playback for videos and audio
+- **Yet Another React Lightbox** - Photo/video gallery with Video plugin
+- **Web Workers** - Background JSON parsing and encoding fixes
+- **File System Access API** - Local file access without uploads
+- **Zod** - Runtime type validation and schema enforcement
 
 ## Privacy
 

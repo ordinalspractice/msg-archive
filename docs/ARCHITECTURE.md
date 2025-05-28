@@ -124,10 +124,12 @@ Search Query → Fuse.js Index → Result Filtering → Highlight Rendering
 - Performance optimization
 
 #### MessageBubble.tsx
-- Individual message rendering
-- Media attachment display
-- Reaction display
-- Type-specific formatting
+- Individual message rendering with advanced media support
+- Comprehensive media attachment display (photos, videos, audio, gifs, stickers, files)
+- Grouped reaction display with tooltips
+- Type-specific formatting with encoding fixes
+- Lightbox integration for photos and videos
+- Object URL management for local file access
 
 #### SearchBar.tsx
 - Real-time search input
@@ -247,6 +249,148 @@ AppContext
 - Cleanup of unused threads
 - Efficient data structures
 - Garbage collection friendly
+- Object URL cleanup for media files
+- Automatic resource management for lightbox slides
+
+## Encoding and Internationalization
+
+### Facebook Export Encoding Issues
+Facebook exports often contain mojibake (corrupted character encoding) where UTF-8 text is incorrectly interpreted as windows-1252. This affects:
+- Message content (Polish characters: "ł", "ą", "ć", etc.)
+- Sender names with international characters  
+- Reaction emojis
+- File and folder names
+
+### Encoding Fix Pipeline
+```typescript
+// Core encoding fix function
+function fixEncoding(text: string): string {
+  try {
+    return decodeURIComponent(escape(text));
+  } catch {
+    return text; // Fallback to original
+  }
+}
+
+// Applied at multiple stages:
+// 1. Worker level - entire file content before JSON parsing
+const fixedContent = await readFileWithProperEncoding(file);
+
+// 2. Field level - individual message fields
+const message = {
+  sender_name: fixEncoding(rawMessage.sender_name),
+  content: fixEncoding(rawMessage.content),
+  reactions: rawMessage.reactions?.map(r => ({
+    reaction: fixEncoding(r.reaction), // Fix emoji
+    actor: fixEncoding(r.actor)       // Fix actor name
+  }))
+};
+```
+
+### Character Encoding Process
+1. **Detection**: Facebook exports UTF-8 as windows-1252 bytes
+2. **Escape**: Convert problematic characters to percent-encoded form
+3. **Decode**: Use `decodeURIComponent` to interpret as UTF-8
+4. **Validation**: Fallback to original text if decoding fails
+
+Example transformation:
+- Raw: `"wÅ‚osy"` (corrupted Polish)
+- Fixed: `"włosy"` (correct Polish)
+
+## Media Asset Management
+
+### Media URI Normalization
+Facebook exports contain absolute paths that need normalization:
+
+```typescript
+// Original export path
+"your_facebook_activity/messages/inbox_someone/photos/photo_123.jpg"
+
+// Normalized for FileSystem API
+"inbox_someone/photos/photo_123.jpg"
+```
+
+### Media Loading Pipeline
+1. **Worker Processing**: Normalize URIs during message parsing
+2. **Frontend Resolution**: Convert normalized URIs to File objects
+3. **Object URL Creation**: Generate blob URLs for browser display
+4. **Memory Management**: Automatic cleanup of temporary URLs
+
+### Supported Media Types
+- **Photos**: JPEG, PNG, WebP with lightbox gallery
+- **Videos**: MP4, MOV, WebM with inline player and lightbox
+- **Audio**: MP3, WAV, OGG with ReactPlayer controls
+- **GIFs**: Animated GIF display
+- **Stickers**: Facebook sticker rendering
+- **Files**: Generic file download with type detection
+
+### Media Component Architecture
+```typescript
+// MediaItem component handles all media types
+<MediaItem
+  uri="normalized/path/to/media.jpg"
+  itemType="photo"
+  onMediaClick={() => openLightbox(index)}
+/>
+
+// Lightbox supports mixed media
+<Lightbox
+  slides={[
+    { src: "blob:...", type: "image", alt: "Photo 1" },
+    { type: "video", sources: [{ src: "blob:...", type: "video/mp4" }] }
+  ]}
+  plugins={[Video]}
+/>
+```
+
+## Reaction System
+
+### Grouped Reaction Display
+Reactions are now grouped by emoji type for cleaner presentation:
+
+```typescript
+// Raw reactions from Facebook
+[
+  { reaction: "😂", actor: "Alice" },
+  { reaction: "😂", actor: "Bob" },
+  { reaction: "❤️", actor: "Charlie" }
+]
+
+// Processed into groups
+[
+  { emoji: "😂", actors: ["Alice", "Bob"], count: 2 },
+  { emoji: "❤️", actors: ["Charlie"], count: 1 }
+]
+```
+
+### Reaction Features
+- **Grouping**: Same emoji reactions are grouped together
+- **Counts**: Display total count for each reaction type
+- **Tooltips**: Hover to see all users who reacted
+- **Encoding**: Emoji characters are properly decoded from mojibake
+- **Search**: Actor names are highlighted in tooltips when searching
+
+### Implementation
+```typescript
+const groupedReactions = useMemo(() => {
+  const reactionMap = new Map<string, string[]>();
+  
+  message.reactions?.forEach(reaction => {
+    const emoji = reaction.reaction; // Already decoded by worker
+    const actor = reaction.actor;   // Already decoded by worker
+    
+    if (reactionMap.has(emoji)) {
+      reactionMap.get(emoji)!.push(actor);
+    } else {
+      reactionMap.set(emoji, [actor]);
+    }
+  });
+
+  return Array.from(reactionMap.entries()).map(([emoji, actors]) => ({
+    emoji, actors, count: actors.length
+  }));
+}, [message.reactions]);
+```
 
 ## File System Integration
 
@@ -307,6 +451,20 @@ self.postMessage({
 - Type-safe communication contracts
 - Error propagation
 - Progress tracking
+- URI normalization for media assets
+- Encoding fixes for international characters
+
+### Media Processing Pipeline
+```typescript
+// Worker normalizes media URIs from Facebook export paths
+normalizeAssetUri("your_facebook_activity/messages/inbox/photo.jpg")
+// Returns: "inbox/photo.jpg" (relative to messages directory)
+
+// Frontend resolves normalized URIs to local files
+const file = await getFileFromNormalizedUri(normalizedUri, directoryHandle);
+const objectUrl = URL.createObjectURL(file);
+// Creates: "blob:http://localhost:5173/uuid" for browser display
+```
 
 ## Security Considerations
 

@@ -214,20 +214,34 @@ function MessageBubble({ message, isHighlighted, searchQuery }: MessageBubblePro
 - `searchQuery`: Search query for text highlighting
 
 **Supported Message Types**:
-- Text messages with emoji support
-- Photo attachments (with lightbox)
-- Video attachments (with player)
-- Audio files (with player)
-- Stickers and GIFs
-- File attachments
-- Call records
-- Reactions display
+- Text messages with emoji support and encoding fixes
+- Photo attachments (with lightbox gallery and click-to-expand)
+- Video attachments (with ReactPlayer and lightbox fullscreen)
+- Audio files (with ReactPlayer controls)
+- Stickers and GIFs (with proper sizing)
+- File attachments (with download functionality)
+- Call records (with duration formatting)
+- Grouped reactions display (with tooltips and counts)
 
 **Media Handling**:
+- FileSystem API integration for local file access
+- Object URL management for browser display
 - Lazy loading for performance
 - Error fallbacks for missing files
-- Responsive sizing
-- Accessibility support
+- Responsive sizing (videos: base 100%, sm 320px, md 480px)
+- Memory management with automatic cleanup
+- Lightbox integration with Video plugin support
+
+**Encoding Features**:
+- Automatic mojibake detection and repair
+- Unicode character restoration for international text
+- Reaction emoji decoding
+- Sender name correction
+
+**Sub-Components**:
+- `MediaItem`: Handles individual media rendering and click events
+- `LightboxSlide`: Mixed media support for photos and videos
+- `GroupedReactions`: Emoji-based reaction grouping with tooltips
 
 ---
 
@@ -357,6 +371,105 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState>
 - Error reporting
 - Recovery mechanisms
 - Development vs. production modes
+
+### MediaItem
+**File**: `src/components/MessageBubble.tsx` (Sub-component)
+
+Individual media file rendering component with FileSystem API integration.
+
+```typescript
+interface MediaItemProps {
+  uri: string;
+  altText: string;
+  itemType: 'photo' | 'video' | 'audio' | 'gif' | 'sticker' | 'file';
+  onMediaClick?: () => void; // For photos, videos, gifs to open lightbox
+  fileName?: string; // For file attachments
+}
+
+function MediaItem({ uri, altText, itemType, onMediaClick, fileName }: MediaItemProps): JSX.Element
+```
+
+**Props**:
+- `uri`: Normalized media URI (relative to messages directory)
+- `altText`: Accessibility description
+- `itemType`: Type of media for appropriate rendering
+- `onMediaClick`: Callback for media interaction (lightbox)
+- `fileName`: Original filename for downloads
+
+**Features**:
+- **URI Resolution**: Converts normalized URIs to File objects using directoryHandle
+- **Object URL Management**: Creates and cleans up blob URLs automatically
+- **Loading States**: Shows skeleton placeholders during file loading
+- **Error Handling**: Displays fallback UI for missing/corrupted files
+- **Responsive Design**: Adaptive sizing based on media type and screen size
+- **Memory Safety**: Automatic cleanup of object URLs on unmount
+
+**Media Type Handling**:
+```typescript
+// Photos, GIFs, Stickers
+<Image 
+  src={objectUrl} 
+  onClick={onMediaClick}
+  maxH={itemType === 'sticker' ? "100px" : "200px"}
+/>
+
+// Videos (enhanced with responsive sizing)
+<Box onClick={onMediaClick} maxW={{ base: '100%', sm: '320px', md: '480px' }}>
+  <AspectRatio ratio={16/9}>
+    <ReactPlayer url={objectUrl} controls />
+  </AspectRatio>
+</Box>
+
+// Audio
+<ReactPlayer 
+  url={objectUrl} 
+  controls 
+  config={{ file: { forceAudio: true } }}
+/>
+
+// Files
+<Button as={Link} href={objectUrl} download={fileName}>
+  {fileName || 'Download File'}
+</Button>
+```
+
+---
+
+### LightboxSlide Interface
+**File**: `src/components/MessageBubble.tsx`
+
+Type definition for mixed media lightbox slides.
+
+```typescript
+interface LightboxSlide {
+  src?: string;           // For images
+  alt?: string;           // Accessibility description
+  type?: 'image' | 'video'; // Media type
+  sources?: {             // For videos
+    src: string;
+    type: string;         // MIME type (e.g., 'video/mp4')
+  }[];
+}
+```
+
+**Usage**:
+```typescript
+// Photo slide
+{ src: "blob:...", type: "image", alt: "Photo 1 from Alice" }
+
+// Video slide  
+{ 
+  type: "video", 
+  alt: "Video 1 from Bob",
+  sources: [{ src: "blob:...", type: "video/mp4" }]
+}
+```
+
+**Features**:
+- **Mixed Media**: Supports both images and videos in same gallery
+- **Video Plugin**: Integrates with yet-another-react-lightbox Video plugin
+- **Type Safety**: Proper TypeScript types for lightbox library compatibility
+- **Memory Management**: Automatic cleanup of blob URLs when lightbox closes
 
 ---
 
@@ -516,28 +629,60 @@ function readFileWithProperEncoding(file: File): Promise<string>
 - Fixes Facebook's mojibake using `decodeURIComponent(escape(text))`
 - Handles UTF-8 text incorrectly interpreted as windows-1252
 - Returns corrected text with proper Polish/international characters
+- Used throughout the application for all text fields
 
 **`readFileWithProperEncoding(file)`**:
 - Reads file and applies mojibake fixes to entire content
 - Applied before JSON parsing for maximum effectiveness
 - Logs encoding fixes to console for debugging
+- Used in worker thread for optimal performance
 
-**Example**:
+**`normalizeAssetUri(uri)`** (Worker function):
+- Normalizes Facebook export media URIs to be relative to messages directory
+- Strips "your_facebook_activity/messages/" prefix from asset paths
+- Handles edge cases like stickers_used/ paths
+- Returns paths suitable for FileSystem API navigation
+
+**Examples**:
 ```typescript
-// Before: "wÅosy" (corrupted)
-// After:  "włosy" (correct)
-const fixed = fixEncoding("wÅosy"); // Returns "włosy"
+// Text encoding fix
+const fixed = fixEncoding("wÅ‚osy"); // "włosy" (Polish)
+const emoji = fixEncoding("ðŸ˜‚");    // "😂" (emoji)
+
+// URI normalization
+const normalized = normalizeAssetUri("your_facebook_activity/messages/inbox_alice/photos/pic.jpg");
+// Returns: "inbox_alice/photos/pic.jpg"
 ```
 
-**How it works**:
-1. `escape("Å¼")` → `"%C5%BC"` (percent-encode bytes)
-2. `decodeURIComponent("%C5%BC")` → `"ż"` (decode as UTF-8)
+**Worker Integration**:
+```typescript
+// Applied to all message fields in parser worker
+const message = {
+  sender_name: fixEncoding(rawMessage.sender_name),
+  content: fixEncoding(rawMessage.content),
+  photos: rawMessage.photos?.map(p => ({ 
+    ...p, 
+    uri: normalizeAssetUri(p.uri) 
+  })),
+  reactions: rawMessage.reactions?.map(r => ({
+    reaction: fixEncoding(r.reaction), // Fix emoji
+    actor: fixEncoding(r.actor)       // Fix actor name
+  }))
+};
+```
+
+**How encoding fix works**:
+1. `escape("Å¼")` → `"%C5%BC"` (percent-encode corrupted bytes)
+2. `decodeURIComponent("%C5%BC")` → `"ż"` (decode as proper UTF-8)
+3. Fallback to original text if decoding fails
 
 **Features**:
 - Automatic mojibake detection and repair
 - Comprehensive logging of fixes applied
-- Fallback error handling
-- Optimized for Facebook export patterns
+- Worker-level performance optimization
+- Fallback error handling for corrupted data
+- Media URI normalization for FileSystem API
+- Optimized for Facebook export patterns and Polish text
 
 ---
 

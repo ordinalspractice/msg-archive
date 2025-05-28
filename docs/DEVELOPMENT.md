@@ -46,6 +46,108 @@ App
 
 ## Key Design Patterns
 
+### Encoding and Media Processing
+
+```typescript
+// Encoding fix pattern for mojibake
+const processMessage = (rawMessage: any) => ({
+  sender_name: fixEncoding(rawMessage.sender_name),
+  content: fixEncoding(rawMessage.content),
+  reactions: rawMessage.reactions?.map(r => ({
+    reaction: fixEncoding(r.reaction), // Fix emoji
+    actor: fixEncoding(r.actor)       // Fix actor name
+  }))
+});
+
+// Media URI normalization in worker
+const normalizedMessage = {
+  ...message,
+  photos: message.photos?.map(p => ({ 
+    ...p, 
+    uri: normalizeAssetUri(p.uri) 
+  })),
+  videos: message.videos?.map(v => ({ 
+    ...v, 
+    uri: normalizeAssetUri(v.uri) 
+  }))
+};
+
+// Object URL management pattern
+useEffect(() => {
+  let objectUrl: string | null = null;
+  
+  const loadMedia = async () => {
+    const file = await resolveFileFromUri(uri, directoryHandle);
+    objectUrl = URL.createObjectURL(file);
+    setMediaUrl(objectUrl);
+  };
+  
+  loadMedia();
+  
+  return () => {
+    if (objectUrl) {
+      URL.revokeObjectURL(objectUrl);
+    }
+  };
+}, [uri, directoryHandle]);
+```
+
+### Grouped Reactions Pattern
+
+```typescript
+// Reaction grouping with memoization
+const groupedReactions = useMemo(() => {
+  const reactionMap = new Map<string, string[]>();
+  
+  message.reactions?.forEach(reaction => {
+    const emoji = reaction.reaction; // Already decoded
+    const actor = reaction.actor;   // Already decoded
+    
+    if (reactionMap.has(emoji)) {
+      reactionMap.get(emoji)!.push(actor);
+    } else {
+      reactionMap.set(emoji, [actor]);
+    }
+  });
+
+  return Array.from(reactionMap.entries()).map(([emoji, actors]) => ({
+    emoji, actors, count: actors.length
+  }));
+}, [message.reactions]);
+```
+
+### Media Component Pattern
+
+```typescript
+// Unified media component with type switching
+const MediaItem: FC<MediaItemProps> = ({ uri, itemType, onMediaClick }) => {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    // File loading and object URL creation
+    // Automatic cleanup on unmount
+  }, [uri]);
+  
+  switch (itemType) {
+    case 'photo':
+      return <Image src={objectUrl} onClick={onMediaClick} />;
+    case 'video':
+      return (
+        <Box onClick={onMediaClick} maxW={{ base: '100%', sm: '320px', md: '480px' }}>
+          <AspectRatio ratio={16/9}>
+            <ReactPlayer url={objectUrl} controls />
+          </AspectRatio>
+        </Box>
+      );
+    case 'audio':
+      return <ReactPlayer url={objectUrl} config={{ file: { forceAudio: true } }} />;
+    default:
+      return null;
+  }
+};
+```
+
 ### Error Boundaries
 ```typescript
 // Wrap components that might throw
@@ -88,9 +190,12 @@ const { parseThread, isWorkerSupported } = useMessageParser();
 
 ### Memory Management
 - Clean up unused thread data
-- Use Map for O(1) lookups
+- Use Map for O(1) lookups  
 - Implement lazy loading
 - Monitor memory usage in DevTools
+- **Object URL Management**: Automatic cleanup of blob URLs for media files
+- **Media Resource Cleanup**: Revoke object URLs when components unmount
+- **Lightbox Memory**: Cleanup slides when lightbox closes
 
 ### Bundle Optimization
 - Code splitting by route
@@ -108,6 +213,83 @@ describe('MessageBubble', () => {
     render(<MessageBubble message={mockMessage} />);
     expect(screen.getByText('Test content')).toBeInTheDocument();
   });
+  
+  it('renders grouped reactions correctly', () => {
+    const messageWithReactions = {
+      ...mockMessage,
+      reactions: [
+        { reaction: '😂', actor: 'Alice' },
+        { reaction: '😂', actor: 'Bob' },
+        { reaction: '❤️', actor: 'Charlie' }
+      ]
+    };
+    render(<MessageBubble message={messageWithReactions} />);
+    expect(screen.getByText('😂')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.getByText('❤️')).toBeInTheDocument();
+    expect(screen.getByText('1')).toBeInTheDocument();
+  });
+  
+  it('handles media items with loading states', async () => {
+    const messageWithPhoto = {
+      ...mockMessage,
+      photos: [{ uri: 'test/photo.jpg', creation_timestamp: 123456789 }]
+    };
+    render(<MessageBubble message={messageWithPhoto} />);
+    expect(screen.getByTestId('media-skeleton')).toBeInTheDocument();
+  });
+});
+
+// Test media component
+describe('MediaItem', () => {
+  const mockDirectoryHandle = {
+    getDirectoryHandle: jest.fn(),
+    getFileHandle: jest.fn(),
+  };
+  
+  beforeEach(() => {
+    // Mock FileSystem API
+    mockDirectoryHandle.getFileHandle.mockResolvedValue({
+      getFile: () => Promise.resolve(new File([''], 'test.jpg', { type: 'image/jpeg' }))
+    });
+  });
+  
+  it('creates object URL for photos', async () => {
+    const spyCreateObjectURL = jest.spyOn(URL, 'createObjectURL');
+    render(<MediaItem uri="test.jpg" itemType="photo" altText="Test photo" />);
+    
+    await waitFor(() => {
+      expect(spyCreateObjectURL).toHaveBeenCalled();
+    });
+  });
+  
+  it('cleans up object URLs on unmount', async () => {
+    const spyRevokeObjectURL = jest.spyOn(URL, 'revokeObjectURL');
+    const { unmount } = render(<MediaItem uri="test.jpg" itemType="photo" altText="Test photo" />);
+    
+    unmount();
+    
+    await waitFor(() => {
+      expect(spyRevokeObjectURL).toHaveBeenCalled();
+    });
+  });
+});
+
+// Test encoding utilities
+describe('fixEncoding', () => {
+  it('fixes Polish characters', () => {
+    expect(fixEncoding('wÅ‚osy')).toBe('włosy');
+    expect(fixEncoding('miÅ‚oÅ›Ä‡')).toBe('miłość');
+  });
+  
+  it('fixes emoji characters', () => {
+    expect(fixEncoding('ðŸ˜‚')).toBe('😂');
+    expect(fixEncoding('â¤ï¸')).toBe('❤️');
+  });
+  
+  it('returns original text if decoding fails', () => {
+    expect(fixEncoding('normal text')).toBe('normal text');
+  });
 });
 
 // Test hooks
@@ -115,6 +297,23 @@ describe('useMessageParser', () => {
   it('parses valid message files', async () => {
     const { parseThread } = renderHook(() => useMessageParser());
     // Test implementation
+  });
+  
+  it('normalizes media URIs in worker', async () => {
+    const mockWorker = {
+      postMessage: jest.fn(),
+      onmessage: null,
+      terminate: jest.fn(),
+    };
+    
+    // Test worker message handling
+    const messageData = {
+      photos: [{ uri: 'your_facebook_activity/messages/inbox/photo.jpg' }]
+    };
+    
+    // Simulate worker processing
+    const normalized = normalizeAssetUri(messageData.photos[0].uri);
+    expect(normalized).toBe('inbox/photo.jpg');
   });
 });
 ```
